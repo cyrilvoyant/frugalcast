@@ -42,7 +42,7 @@ Free for research, teaching and any non-commercial use, provided the tool is cit
 
 ## Cite
 
-- The tool: Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals. Mines Paris – PSL.
+- The tool: Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.0.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
 - Benchmarks (PER, CLIM, CLIPER, ES, ARTU): Voyant et al. (2022), Renewable Energy 191, 747–762, https://doi.org/10.1016/j.renene.2022.04.065
 - NICE^k metrics: Voyant et al. (2025), Sustainable Energy Technologies and Assessments 83, 104588, https://doi.org/10.1016/j.seta.2025.104588
 - BLEND and periodically correlated processes: Voyant et al. (2026), Applied Mathematical Modelling 157, 116988, https://doi.org/10.1016/j.apm.2026.116988
