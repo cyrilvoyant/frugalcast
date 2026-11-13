@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1200">
-<title>FrugalCast · Does your forecast beat persistence?</title>
+<title>FrugalCast · Do simple forecasting models beat persistence?</title>
 <meta name="description" content="Paste any time series and compare 30 frugal forecasting models (persistences, CLIPER, ES, ARTU, BLEND, Holt-Winters, Theta, AR, ARMA, PAR, complex-valued AR, 14 extreme learning machines) with prediction intervals and 20 deterministic and probabilistic metrics: nRMSE, R², NICE, PICP, interval score, CRPS. Free for non-commercial use, runs in your browser: your data never leave your computer. Offline Windows kit for every model and horizon in one run, in preparation.">
 <meta name="keywords" content="time series forecasting, benchmark, persistence, baseline, CLIPER, exponential smoothing, ARTU, Holt-Winters, Theta method, ARMA, periodic AR, extreme learning machine, ELM, conformal prediction, prediction intervals, CRPS, PICP, NICE, solar forecasting, load forecasting, energy, economics, finance, online forecasting tool, forecasting in the browser, no install, offline forecasting, edge computing, data sovereignty, on-premise forecasting, GDPR, multi-horizon forecasting, probabilistic forecasting, forecast evaluation, skill score, frugal AI, Windows, PowerShell">
 <meta name="author" content="Cyril Voyant">
@@ -13,7 +13,7 @@
 <meta property="og:url" content="https://frugalcast.cyrilvoyant.com/">
 <link rel="describedby" href="llms.txt" type="text/plain">
 <meta property="og:type" content="website">
-<meta property="og:title" content="FrugalCast · Does your forecast beat persistence?">
+<meta property="og:title" content="FrugalCast · Do simple forecasting models beat persistence?">
 <meta property="og:description" content="30 frugal forecasting models, prediction intervals and 20 metrics on your own time series, in the browser. Free for non-commercial use.">
 <meta name="twitter:card" content="summary">
 <meta name="citation_title" content="FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals">
@@ -55,7 +55,7 @@
     </g>
   </svg>
   <p class="kicker">Free for research and teaching · runs in your browser · your data never leave it</p>
-  <h1>Does your forecast beat persistence?</h1>
+  <h1>Do simple models beat persistence?</h1>
   <p class="lead"><b>FrugalCast</b> runs 30 frugal forecasting models on your own time series and scores them honestly: same samples, same cross-validation, prediction intervals for all, and every metric that matters.</p>
   <div class="chips"><span>Persistences · CLIM · CLIPER · ES · ARTU</span><span>BLEND · Holt-Winters · Theta</span><span>AR · ARMA · PAR · complex AR</span><span>14 extreme learning machines</span><span>Conformal or Gaussian intervals</span><span>20 metrics: R² · NICE · CRPS · PICP…</span></div>
   <div class="quick"><span><b>1</b> Paste two series</span><span><b>2</b> Say if it has a period</span><span><b>3</b> Pick four models and run</span><button class="btn" type="button" id="tryEx">Try it with the example →</button></div>
@@ -88,6 +88,7 @@
         <label><input type="radio" name="prep" value="center"> Centre it <small>(minus its mean)</small></label>
         <label><input type="radio" name="prep" value="standard"> Centre and scale it <small>(÷ standard deviation)</small></label>
       </div>
+      <p class="hint">Centring makes values negative: the three ELMs that take a logarithm (log-MSE, Box-Cox, GLM Gamma) are then set aside.</p>
       <p class="hint">Mean and standard deviation of the learning series. Forecasts and intervals are mapped back to the units of the series.</p>
       <label class="chk" title="Forecasts and interval limits below 0 are set to 0 when the learning series has no negative value. The rule applies independently of the observed target."><input type="checkbox" id="clip" checked> Clip forecasts at 0 <span class="tip" aria-hidden="true">ⓘ</span></label>
       <label class="chk" title="For nonnegative GHI, GTI and PV power. Where the observed value is 0 (night), the forecast, its limits and its centiles are written as 0. This is NOT causal: it uses the observation, so it is a retrospective view. For real forecasting, filtering the night is your job (for instance from the sun position at your site). Scores on positive observed targets do not depend on this rule."><input type="checkbox" id="solar"> Solar series (GHI, GTI, PV) <span class="tip" aria-hidden="true">ⓘ</span></label>

@@ -1,4 +1,4 @@
-# FrugalCast: does your forecast beat persistence?
+# FrugalCast: do simple forecasting models beat persistence?
 
 > Free (non-commercial use, citation required) in-browser benchmark of 30 frugal time series forecasting models with prediction intervals and 20 deterministic and probabilistic metrics. Paste a learning series and a series to forecast; pick four models; get forecasts, lower and upper limits, and scores against persistence. No server: the data never leave the browser. Author: Cyril Voyant (Mines Paris – PSL, ORCID 0000-0003-0242-7377).
 

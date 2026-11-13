@@ -262,7 +262,8 @@
     $('scoreNotes').hidden = !warnings.size;
     $('kpis').innerHTML = job.models.map((id, k) => {
       const m = h.models[id], name = E.MODELS[id].name;
-      if (!m) return `<div class="kpi gone" style="--c:${COLORS[k]}"><div class="nm">${name}</div><div class="row">set aside on this series</div></div>`;
+      if (!m) { const why = (result.skipped.find(s => s.id === id) || {}).why;
+        return `<div class="kpi gone" style="--c:${COLORS[k]}"><div class="nm">${name}</div><div class="row">set aside on this series</div>${why ? `<div class="row"><small>${why.replace(/</g, '&lt;')}</small></div>` : ''}</div>`; }
       const s = m.score;
       return `<div class="kpi" style="--c:${COLORS[k]}">${s.nrmse === bn ? '<span class="crown">best nRMSE</span>' : ''}<div class="nm">${name}</div>
         <div class="big">${fmt(s.nrmse, 'nrmse')}<small>nRMSE</small></div>
