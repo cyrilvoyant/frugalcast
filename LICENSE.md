@@ -4,7 +4,7 @@ Copyright (c) 2026 Cyril Voyant, Mines Paris – PSL.
 
 FrugalCast is free for research, teaching and any other **non-commercial** use, provided you cite it:
 
-> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals. Mines Paris – PSL. https://pred.cyrilvoyant.com/
+> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals. Mines Paris – PSL. https://frugalcast.cyrilvoyant.com/
 
 ## Code
 

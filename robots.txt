@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://pred.cyrilvoyant.com/sitemap.xml
+Sitemap: https://frugalcast.cyrilvoyant.com/sitemap.xml

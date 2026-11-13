@@ -489,7 +489,7 @@
 
   // ---------- jobs from outside (API.md): #job= link, .json file (opened or dropped). ?job=<url> and postMessage removed (Cyril, 13 Nov. 2026): automation goes through FrugalCast Local ----------
   // Everything is computed here, in the visitor's browser. The #fragment of a URL is never sent to the server.
-  const SITE = 'https://pred.cyrilvoyant.com/';   // provisional address, until Cyril chooses the subdomain
+  const SITE = 'https://frugalcast.cyrilvoyant.com/';   // provisional address, until Cyril chooses the subdomain
   const CITE = `Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals. Mines Paris – PSL. ${SITE}`;
   const API = (() => {
     let via = null, asked = false;

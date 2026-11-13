@@ -32,7 +32,7 @@ rmse, nrmse, mae, nmae, mbe, nmbe, maxae, r2, r, nice1, nice2, nice3, niceS (NIC
 The page is meant to be used by a person. To automate forecasts (no fixed size limit, all 30 models, several horizons, saved models, forecasts of the future, scheduled runs), use FrugalCast Local, the Windows kit with a free personal key (in preparation).
 
 
-- Link: https://pred.cyrilvoyant.com/#job=<URL-encoded JSON> (or `z` + base64url of raw-DEFLATE JSON). The part after # is never sent to any server.
+- Link: https://frugalcast.cyrilvoyant.com/#job=<URL-encoded JSON> (or `z` + base64url of raw-DEFLATE JSON). The part after # is never sent to any server.
 - Local file: "Open settings" or drop a .json file on the page; "Save settings" and "Share settings" write the settings, with the series only when "with the data" is ticked. learn and forecast are optional (both or neither).
 - Job: { learn: [...], forecast: [...], period: 24 | "none", horizon: 1, models: [4 ids], search, fixed, pca, interval: { kind, coverage }, prep, norm, clip }. A job is never computed on arrival: the page is filled in and the computation starts when the reader clicks Run. Up to 50,000 values in each series (10,000 when pasted by hand). Full format: API.md.
 

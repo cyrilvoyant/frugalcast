@@ -6,7 +6,7 @@ Why a click: the reader sees what will be computed (series, models, settings) be
 
 Free for research, teaching and any non-commercial use. Please cite it (see the end of this file).
 
-Page address (provisional): `https://pred.cyrilvoyant.com/`
+Page address (provisional): `https://frugalcast.cyrilvoyant.com/`
 
 ## 1. The job
 
@@ -72,7 +72,7 @@ job = {"learn": learn, "forecast": test, "period": 24, "horizon": 1,
        "models": ["cliper", "artu", "arma", "elm"]}
 c = zlib.compressobj(9, zlib.DEFLATED, -15)          # raw DEFLATE
 z = c.compress(json.dumps(job).encode()) + c.flush()
-link = "https://pred.cyrilvoyant.com/#job=z" + base64.urlsafe_b64encode(z).decode().rstrip("=")
+link = "https://frugalcast.cyrilvoyant.com/#job=z" + base64.urlsafe_b64encode(z).decode().rstrip("=")
 webbrowser.open(link)        # the page opens filled in; click Run
 ```
 
@@ -95,7 +95,7 @@ The page does not take jobs from other websites or pages (no `?job=` address, no
 ```json
 {
   "format": "frugalcast-results/1",
-  "tool": "FrugalCast", "url": "https://pred.cyrilvoyant.com/",
+  "tool": "FrugalCast", "url": "https://frugalcast.cyrilvoyant.com/",
   "cite": "Voyant, C. (2026). FrugalCast: …",
   "settings": { "period": 24, "horizon": 1, "models": ["cliper", "artu", "arma", "elm"] },
   "horizon": 1,
@@ -130,7 +130,7 @@ The page is meant to be used by a person, with up to 50,000 values in a job. For
 
 The tool is free for research, teaching and any non-commercial use, provided you cite it:
 
-> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals. Mines Paris – PSL. https://pred.cyrilvoyant.com/
+> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals. Mines Paris – PSL. https://frugalcast.cyrilvoyant.com/
 
 Cite the papers of the models you use as well. After a job opened from a file or a link, the page offers a `.bib` file with the papers of the four models.
 
