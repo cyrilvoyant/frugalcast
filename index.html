@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1200">
+<title>FrugalCast · Does your forecast beat persistence?</title>
+<meta name="description" content="Paste any time series and compare 30 frugal forecasting models (persistences, CLIPER, ES, ARTU, BLEND, Holt-Winters, Theta, AR, ARMA, PAR, complex-valued AR, 14 extreme learning machines) with prediction intervals and 20 deterministic and probabilistic metrics: nRMSE, R², NICE, PICP, interval score, CRPS. Free for non-commercial use, runs in your browser: your data never leave your computer. Offline Windows kit for every model and horizon in one run, in preparation.">
+<meta name="keywords" content="time series forecasting, benchmark, persistence, baseline, CLIPER, exponential smoothing, ARTU, Holt-Winters, Theta method, ARMA, periodic AR, extreme learning machine, ELM, conformal prediction, prediction intervals, CRPS, PICP, NICE, solar forecasting, load forecasting, energy, economics, finance, online forecasting tool, forecasting in the browser, no install, offline forecasting, edge computing, data sovereignty, on-premise forecasting, GDPR, multi-horizon forecasting, probabilistic forecasting, forecast evaluation, skill score, frugal AI, Windows, PowerShell">
+<meta name="author" content="Cyril Voyant">
+<meta name="robots" content="index, follow">
+<link rel="author" href="https://orcid.org/0000-0003-0242-7377">
+<link rel="canonical" href="https://pred.cyrilvoyant.com/">
+<meta property="og:url" content="https://pred.cyrilvoyant.com/">
+<link rel="describedby" href="llms.txt" type="text/plain">
+<meta property="og:type" content="website">
+<meta property="og:title" content="FrugalCast · Does your forecast beat persistence?">
+<meta property="og:description" content="30 frugal forecasting models, prediction intervals and 20 metrics on your own time series, in the browser. Free for non-commercial use.">
+<meta name="twitter:card" content="summary">
+<meta name="citation_title" content="FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals">
+<meta name="citation_author" content="Voyant, Cyril">
+<meta name="citation_publication_date" content="2026">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"FrugalCast","alternateName":"Frugal forecasting bench",
+ "applicationCategory":"ScientificApplication","operatingSystem":"Any (web browser)","isAccessibleForFree":true,"license":"https://polyformproject.org/licenses/noncommercial/1.0.0/","url":"https://pred.cyrilvoyant.com/","inLanguage":"en",
+ "description":"Benchmark of 30 frugal time series forecasting models with prediction intervals and deterministic and probabilistic metrics, computed in the browser.",
+ "author":{"@type":"Person","@id":"https://person.cyrilvoyant.com/#cyril-voyant","name":"Cyril Voyant","identifier":"https://orcid.org/0000-0003-0242-7377","affiliation":{"@type":"Organization","name":"Mines Paris – PSL"}},
+ "keywords":"time series forecasting, forecast benchmark, persistence, CLIPER, ARTU, exponential smoothing, Holt-Winters, Theta, ARMA, PAR, extreme learning machine, prediction intervals, CRPS, NICE, solar forecasting, offline, edge computing, data sovereignty",
+ "featureList":["30 forecasting models","prediction intervals","20 deterministic and probabilistic metrics","computed in the browser, data never uploaded","offline Windows kit in preparation: every model and horizon in one run"],"softwareVersion":"1.0","datePublished":"2026-11-13",
+ "citation":["https://doi.org/10.1016/j.renene.2022.04.065","https://doi.org/10.1016/j.seta.2025.104588","https://doi.org/10.1063/5.0128131","https://doi.org/10.1016/j.apenergy.2026.127599","https://doi.org/10.1016/j.apm.2026.116988","https://doi.org/10.1016/j.rser.2018.04.116","https://doi.org/10.1016/j.solener.2018.08.076"],
+ "isBasedOn":["https://doi.org/10.5281/zenodo.21487267","https://doi.org/10.5281/zenodo.18812334","https://doi.org/10.5281/zenodo.21490744","https://doi.org/10.5281/zenodo.23562549"]}
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%2307569a%27/%3E%3Cpath d=%27M4 22 C9 21 10 11 15 12 S21 23 28 9%27 stroke=%27%23fff%27 stroke-width=%273%27 fill=%27none%27 stroke-linecap=%27round%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="wrap">
+  <strong>FrugalCast</strong><span class="motto">by Cyril Voyant · Mines Paris – PSL</span>
+  <nav><a href="#cite" onclick="document.getElementById('cite').open=true">Cite</a><a href="#code">Send a job</a><a href="#local">Offline kit</a><a href="https://www.cyrilvoyant.com/teaching/solar-forecasting-course/">Course</a><a href="https://www.cyrilvoyant.com/tools/extreme-learning-machine/">Understanding the ELM</a><a href="https://github.com/cyrilvoyant">Code</a><a href="https://www.cyrilvoyant.com/">Website</a></nav>
+</div></div>
+
+<main class="wrap">
+<section class="hero">
+  <svg class="deco" viewBox="0 0 520 300" aria-hidden="true">
+    <defs><linearGradient id="fade" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".35" stop-color="#fff" stop-opacity="1"/></linearGradient>
+      <mask id="m"><rect width="520" height="300" fill="url(#fade)"/></mask></defs>
+    <g mask="url(#m)" fill="none" stroke-linecap="round">
+      <path d="M0 210 C40 200 60 120 100 125 S160 215 200 205 S260 110 300 112" stroke="#172536" stroke-width="2" opacity=".55"/>
+      <path d="M300 112 C340 115 360 200 400 205 S460 120 520 118 L520 70 C460 72 420 150 400 160 S340 70 300 112Z" fill="#07569a" opacity=".08" stroke="none"/>
+      <path d="M300 112 C340 118 360 230 400 238 S460 165 520 160 L520 40 C460 40 420 110 400 118 S340 60 300 112Z" fill="#07569a" opacity=".06" stroke="none"/>
+      <path d="M300 112 C340 116 360 182 400 184 S460 98 520 96" stroke="#07569a" stroke-width="2.4"/>
+      <path d="M300 112 C340 120 362 196 402 196 S462 112 520 110" stroke="#b8306b" stroke-width="1.8" stroke-dasharray="6 5"/>
+      <path d="M300 112 C340 112 358 170 398 175 S458 88 520 86" stroke="#0f8a7e" stroke-width="1.8" stroke-dasharray="2 5"/>
+      <line x1="300" y1="30" x2="300" y2="270" stroke="#46586a" stroke-dasharray="3 4" opacity=".5"/>
+    </g>
+  </svg>
+  <p class="kicker">Free for research and teaching · runs in your browser · your data never leave it</p>
+  <h1>Does your forecast beat persistence?</h1>
+  <p class="lead"><b>FrugalCast</b> runs 30 frugal forecasting models on your own time series and scores them honestly: same samples, same cross-validation, prediction intervals for all, and every metric that matters.</p>
+  <div class="chips"><span>Persistences · CLIM · CLIPER · ES · ARTU</span><span>BLEND · Holt-Winters · Theta</span><span>AR · ARMA · PAR · complex AR</span><span>14 extreme learning machines</span><span>Conformal or Gaussian intervals</span><span>20 metrics: R² · NICE · CRPS · PICP…</span></div>
+  <div class="quick"><span><b>1</b> Paste two series</span><span><b>2</b> Say if it has a period</span><span><b>3</b> Pick four models and run</span><button class="btn" type="button" id="tryEx">Try it with the example →</button></div>
+  <p class="universal">For <b>any time series</b> with a regular time step: solar or wind power, electricity load, temperature, river flow, traffic, sales, prices, stock indices, macroeconomic indicators… If the series has a period (a day, a week, a year), give its number of steps; otherwise write <b>none</b>, and the models use the past values only.</p>
+</section>
+
+<section class="step" style="--sc:var(--p2)">
+  <header><span class="n">1</span><h2>Data</h2><small>one value per line, or separated by <code>;</code> or spaces · decimal comma accepted</small></header>
+  <p class="datarules"><b>Before you paste, check three rules.</b> The tool cannot see time stamps, so it trusts the order of the values.
+    <b>1. No gap:</b> one value for every time step, night included, with the same step everywhere.
+    <b>2. No missing value:</b> no NaN, NA or empty line; fill or remove the period yourself first.
+    <b>3. Start exactly at the beginning of a period:</b> for a daily cycle in hourly data, the first value is the first hour of a day (for instance 00:00), so that the phase of every value is right for the cyclic models, the time inputs and the per-phase intervals. The forecast series follows the learning series directly, with no step missing in between.</p>
+  <div class="two">
+    <div class="card">
+      <div class="dhead"><b>Learning series</b><span class="badge" id="nlearn"></span></div>
+      <textarea id="learn" spellcheck="false" placeholder="Paste here: at most 10,000 values. The models are fitted and tuned on this series only."></textarea>
+      <p class="hint">At most 10,000 values (50,000 in a job file or link). Every fit, every choice of setting and every interval comes from it.</p>
+    </div>
+    <div class="card">
+      <div class="dhead"><b>Series to forecast</b><span class="badge" id="nfore"></span></div>
+      <textarea id="fore" spellcheck="false" placeholder="Paste here: at most 10,000 values. It must follow the learning series in time, with the same time step."></textarea>
+      <p class="hint">At most 10,000 values (50,000 in a job file or link). It follows the learning series directly; it is used only to score the forecasts.</p>
+    </div>
+  </div>
+  <div class="toolbar"><select id="exsel" aria-label="Example data" style="width:auto;display:inline-block;margin:0"><option value="ghi" selected>Solar irradiance (GHI), hourly, CAMS open data</option><option value="edf">Electricity production, Corsica, hourly, EDF open data</option></select><button class="btn" id="example" type="button">Load the example</button><small class="note" id="exlabel" style="margin:0"></small></div>
+  <div class="prep card">
+    <div><b>Before modelling</b>
+      <div class="radio" role="radiogroup" aria-label="Preparation of the series">
+        <label><input type="radio" name="prep" value="none" checked> Use the series as it is</label>
+        <label><input type="radio" name="prep" value="center"> Centre it <small>(minus its mean)</small></label>
+        <label><input type="radio" name="prep" value="standard"> Centre and scale it <small>(÷ standard deviation)</small></label>
+      </div>
+      <p class="hint">Mean and standard deviation of the learning series. Forecasts and intervals are mapped back to the units of the series.</p>
+      <label class="chk" title="Forecasts and interval limits below 0 are set to 0 when the learning series has no negative value. The rule applies independently of the observed target."><input type="checkbox" id="clip" checked> Clip forecasts at 0 <span class="tip" aria-hidden="true">ⓘ</span></label>
+      <label class="chk" title="For nonnegative GHI, GTI and PV power. Where the observed value is 0 (night), the forecast, its limits and its centiles are written as 0. This is NOT causal: it uses the observation, so it is a retrospective view. For real forecasting, filtering the night is your job (for instance from the sun position at your site). Scores on positive observed targets do not depend on this rule."><input type="checkbox" id="solar"> Solar series (GHI, GTI, PV) <span class="tip" aria-hidden="true">ⓘ</span></label>
+      <div id="solarBox" class="hidden">
+        <label for="solScore">Scores on</label><select id="solScore"><option value="day" selected>positive observed targets</option><option value="all">all observed targets</option></select>
+        <label for="solCv" title="Validation error used to select model settings. The positive-target option averages RMSE across folds with at least one positive target. When no fold qualifies, selection uses all targets. Interval calibration always uses every validation error.">Settings chosen on</label><select id="solCv"><option value="all" selected>all validation targets</option><option value="day">positive validation targets</option></select>
+        <p class="hint">Keep every time step, including night. Where the observation is 0, the forecast and its limits are written as 0: <b>not causal</b> (retrospective view). In real use, filtering the night is your job. Scores on positive targets do not depend on it.</p>
+      </div>
+    </div>
+    <div><b>Normalized errors</b> <small>(nRMSE, nMAE, nMBE, nMIL, nCRPS)</small>
+      <div class="radio" role="radiogroup" aria-label="Normalization of the errors">
+        <label><input type="radio" name="norm" value="mean" checked> ÷ mean of the observations</label>
+        <label><input type="radio" name="norm" value="sd"> ÷ standard deviation</label>
+        <label><input type="radio" name="norm" value="none"> No normalization <small>(units of the series)</small></label>
+      </div>
+      <p class="hint">Use the standard deviation, or none, when the mean is close to zero (returns, anomalies, centred series).</p>
+    </div>
+  </div>
+</section>
+
+<section class="step" style="--sc:var(--p3)">
+  <header><span class="n">2</span><h2>Settings</h2></header>
+  <div class="four">
+    <div class="card top" style="--c:var(--p2)">
+      <h3>Period and horizon</h3>
+      <label for="T">Steps per period, or <b>none</b></label>
+      <input type="text" id="T" value="24" autocomplete="off">
+      <div class="seg" id="Tquick">
+        <button type="button" data-v="24">24 · hourly</button><button type="button" data-v="48">48 · 30 min</button><button type="button" data-v="96">96 · 15 min</button>
+        <button type="button" data-v="7">7 · daily, week</button><button type="button" data-v="12">12 · monthly</button><button type="button" data-v="none">none</button>
+      </div>
+      <p class="hint" id="Thint"></p>
+      <label class="chk" id="weeklyL"><input type="checkbox" id="weekly"> Second cycle of 7 periods <small>(the week)</small></label>
+      <label class="chk" id="annualL"><input type="checkbox" id="annual"> Annual cycle <small>(period = 1 day)</small></label>
+      <label for="horizon" style="margin-top:12px">Horizon, in lags</label>
+      <select id="horizon"><option value="1" selected>1 lag</option><option value="2">2 lags</option><option value="3">3 lags</option><option value="4">4 lags</option><option value="5">5 lags</option><option value="6">6 lags</option><option value="7">7 lags</option><option value="8">8 lags</option><option value="9">9 lags</option><option value="10">10 lags</option><option value="11">11 lags</option><option value="12">12 lags</option><option value="13">13 lags</option><option value="14">14 lags</option><option value="15">15 lags</option><option value="16">16 lags</option><option value="17">17 lags</option><option value="18">18 lags</option><option value="19">19 lags</option><option value="20">20 lags</option><option value="21">21 lags</option><option value="22">22 lags</option><option value="23">23 lags</option><option value="24">24 lags</option><option value="25">25 lags</option><option value="26">26 lags</option><option value="27">27 lags</option><option value="28">28 lags</option><option value="29">29 lags</option><option value="30">30 lags</option><option value="31">31 lags</option><option value="32">32 lags</option><option value="33">33 lags</option><option value="34">34 lags</option><option value="35">35 lags</option><option value="36">36 lags</option><option value="37">37 lags</option><option value="38">38 lags</option><option value="39">39 lags</option><option value="40">40 lags</option><option value="41">41 lags</option><option value="42">42 lags</option><option value="43">43 lags</option><option value="44">44 lags</option><option value="45">45 lags</option><option value="46">46 lags</option><option value="47">47 lags</option><option value="48">48 lags</option><option value="49">49 lags</option><option value="50">50 lags</option><option value="51">51 lags</option><option value="52">52 lags</option><option value="53">53 lags</option><option value="54">54 lags</option><option value="55">55 lags</option><option value="56">56 lags</option><option value="57">57 lags</option><option value="58">58 lags</option><option value="59">59 lags</option><option value="60">60 lags</option><option value="61">61 lags</option><option value="62">62 lags</option><option value="63">63 lags</option><option value="64">64 lags</option><option value="65">65 lags</option><option value="66">66 lags</option><option value="67">67 lags</option><option value="68">68 lags</option><option value="69">69 lags</option><option value="70">70 lags</option><option value="71">71 lags</option><option value="72">72 lags</option><option value="73">73 lags</option><option value="74">74 lags</option><option value="75">75 lags</option><option value="76">76 lags</option><option value="77">77 lags</option><option value="78">78 lags</option><option value="79">79 lags</option><option value="80">80 lags</option><option value="81">81 lags</option><option value="82">82 lags</option><option value="83">83 lags</option><option value="84">84 lags</option><option value="85">85 lags</option><option value="86">86 lags</option><option value="87">87 lags</option><option value="88">88 lags</option><option value="89">89 lags</option><option value="90">90 lags</option><option value="91">91 lags</option><option value="92">92 lags</option><option value="93">93 lags</option><option value="94">94 lags</option><option value="95">95 lags</option><option value="96">96 lags</option><option value="97">97 lags</option><option value="98">98 lags</option><option value="99">99 lags</option><option value="100">100 lags</option></select>
+      <p class="hint">From 1 to 100 steps ahead.</p>
+    </div>
+    <div class="card top" style="--c:var(--p3)">
+      <h3>Search</h3>
+      <p class="hint" style="margin:0 0 4px">Ticked: chosen by cross-validation on the learning series. Unticked: the fixed value.</p>
+      <label class="chk"><input type="checkbox" id="optIn"> <span id="optInL">Inputs: 0.5, 1, 1.5, 2 periods</span></label>
+      <label class="chk"><input type="checkbox" id="optNh"> Hidden neurons: 10, 50, 100, 500</label>
+      <label class="chk" title="λ controls shrinkage of the ELM output weights. Generalised cross-validation (Golub, Heath and Wahba 1979) evaluates a formula over an internal grid in each fit. The final λ is shown under Settings kept. Temporal validation evaluates the model settings. With this option off, λ = 10⁻⁶."><input type="checkbox" id="optLam" checked> Ridge λ by GCV <span class="tip" aria-hidden="true">ⓘ</span></label>
+      <label class="chk"><input type="checkbox" id="optSm" checked> Smoothing: Holt-Winters (grid), Theta (least squares), ES window</label>
+      <label class="chk"><input type="checkbox" id="pca"> PCA of the lag inputs <small>(95 % of the variance · <a href="https://www.cyrilvoyant.com/prevision-pv-reduction-dimension/" target="_blank" rel="noopener">why</a>)</small></label>
+      <p class="hint">30 random hidden layers per setting; expanding-window cross-validation over the whole learning series (5 blocks, 4 folds).</p>
+      <div class="warn hidden" id="slow">The search can take several minutes. You can stop it at any time.</div>
+    </div>
+    <div class="card top" style="--c:var(--p4)">
+      <h3>Fixed values</h3>
+      <label for="lbFix">Inputs <small id="lbUnit">(periods)</small></label>
+      <select id="lbFix"><option value="0">0.5</option><option value="1" selected>1</option><option value="2">1.5</option><option value="3">2</option></select>
+      <label for="nhFix">Hidden neurons</label>
+      <select id="nhFix"><option>10</option><option>50</option><option>100</option><option selected>500</option></select>
+      <label for="lamFix">Ridge λ</label>
+      <select id="lamFix"><option value="1e-6" selected>10⁻⁶</option></select>
+      <label for="act">ELM activation</label>
+      <select id="act"><option value="sigmoid">sigmoid</option><option value="tanh">tanh</option><option value="relu">ReLU</option><option value="sine">sine</option><option value="gaussian">Gaussian</option></select>
+      <p class="hint">A searched setting cannot be fixed: its box is greyed. ELM variants search their own grid, the one of their reference script.</p>
+    </div>
+    <div class="card top" style="--c:var(--p5)">
+      <h3>Prediction interval</h3>
+      <label for="cov">Nominal coverage (%)</label>
+      <input type="number" id="cov" min="10" max="99" value="80">
+      <label class="chk"><input type="checkbox" id="asym"> Lower and upper levels apart</label>
+      <div id="asymBox" class="hidden" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <label>Lower (%)<input type="number" id="qlo" min="0.5" max="49.5" step="0.5" value="10"></label>
+        <label style="margin-top:10px">Upper (%)<input type="number" id="qhi" min="50.5" max="99.5" step="0.5" value="90"></label>
+      </div>
+      <label for="bandKind">Method</label>
+      <select id="bandKind"><option value="conformal">empirical quantiles of out-of-fold residuals</option><option value="gaussian">Gaussian (mean ± z·sd)</option></select>
+      <label class="chk" title="Per-phase empirical quantiles, as in Mondrian conformal prediction (Vovk et al., 2005): the interval at each time uses only the validation errors made at the same phase of the period (same hour of the day for hourly data). The interval follows the cycle: it closes at night for solar series, widens at noon. Needs a period; a phase with fewer than 20 errors uses all of them."><input type="checkbox" id="bandPhase" checked> Per phase of the period <span class="tip" aria-hidden="true">ⓘ</span></label>
+      <p class="hint">From the out-of-sample validation errors of each model. Limits and centiles never go below 0 when "Clip forecasts at 0" applies.</p>
+    </div>
+  </div>
+</section>
+
+<section class="step" style="--sc:var(--p4)">
+  <header><span class="n">3</span><h2>Models</h2><small>choose four among 30 · a model that cannot run on the series is set aside, with the reason</small></header>
+  <div class="four" id="models"></div>
+</section>
+
+<div class="runbar">
+  <button class="btn primary" id="go" type="button">Run</button>
+  <button class="btn" id="stop" type="button" disabled>Stop</button>
+  <div class="bar"><i id="barfill"></i></div>
+  <span id="status">Ready.</span>
+  <span class="jobs"><button class="btn" id="jobLoad" type="button" title="Open a .json settings file (see API.md), with or without data; you can also drop it on the page">Open settings</button><button class="btn" id="jobSave" type="button" title="Save the settings as a .json file (with the series if the box is ticked)">Save settings</button><button class="btn" id="jobShare" type="button" title="Copy a link that holds the settings (and the series if the box is ticked). The link part after # is never sent to any server.">Share settings</button><label class="chk" title="Put the learning series and the series to forecast in the saved file or the shared link. Unticked: settings only."><input type="checkbox" id="jobData"> with the data</label></span>
+  <input type="file" id="jobFile" accept=".json,application/json" hidden>
+</div>
+<div class="err" id="err" role="alert"></div>
+
+<section class="step hidden" id="results" style="--sc:var(--p5)">
+  <header><span class="n">4</span><h2>Results</h2><small id="rsub"></small></header>
+  <p class="note" id="scoreNotes" role="status" hidden></p>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="panel">
+    <div class="toolbar" style="margin:0 0 8px">
+      <h3 style="margin:0">Metrics</h3><span class="sp"></span>
+      <button class="btn" id="copyMet" type="button">Copy the metrics</button>
+      <button class="btn" id="copyMat" type="button">Copy the forecast matrix</button>
+      <button class="btn" id="csv" type="button">Download CSV</button>
+      <button class="btn" id="resJson" type="button">Download JSON</button>
+    </div>
+    <div class="metsel" id="metsel"></div>
+    <div class="tablewrap"><table id="met"></table></div>
+    <p class="note" id="chosen"></p>
+    <p class="note" id="copied"></p>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar" style="margin:0 0 6px"><h3 style="margin:0">Show in the plots</h3><div class="pmsel" id="pmsel"></div></div>
+    <h3 style="margin-top:8px">Forecasts against observations, three periods at a time</h3><p class="note" style="margin:0 0 6px">Deterministic view: one line and one marker per model. The prediction intervals are in the fan charts below.</p>
+    <div class="slider"><span>earlier</span><input type="range" id="win" min="0" max="0" value="0"><span>later</span><b id="winlab"></b></div>
+    <canvas id="series"></canvas>
+  </div>
+
+  <div class="panel">
+    <h3>Probabilistic diagnostics</h3>
+    <div class="dxsel">
+      <label><input type="checkbox" class="dx" value="fan" checked> Fan charts</label>
+      <label><input type="checkbox" class="dx" value="rel" checked> Reliability diagram</label>
+      <label><input type="checkbox" class="dx" value="pit" checked> PIT histogram</label>
+      <label><input type="checkbox" class="dx" value="qq"> Normal QQ plot</label>
+      <label><input type="checkbox" class="dx" value="sc"> Forecast against observed</label>
+      <label><input type="checkbox" class="dx" value="hist"> Error histogram</label>
+    </div>
+  </div>
+  <div class="plots" id="dx" style="margin-top:16px"></div>
+</section>
+
+<section class="more">
+  <details class="sec"><summary>How the bench works</summary><div>
+    <ol>
+      <li><b>Samples.</b> At each issue time <i>t</i>, the inputs are the last values of the series, centred and scaled with the learning series (optionally reduced by PCA), plus sin/cos clock inputs of the target time when the series has a period. The target is the value <i>h</i> steps later. All models are scored on the same issue times.</li>
+      <li><b>Fit and choice of settings.</b> Only the learning series is used. Settings are chosen by expanding-window cross-validation: fit on the beginning, validate on what follows, four times with a longer fitting window. The best setting is then refitted on the whole learning series.</li>
+      <li><b>Intervals.</b> The residuals of the four validation blocks are out of sample. Their quantiles (conformal) or their mean and standard deviation (Gaussian) give the lower and upper limits. The complex-valued AR scales them by its own forecast volatility, as in its paper.</li>
+      <li><b>Scores.</b> Each forecast uses data available at its issue time. The target supplies the observed value for scoring. With <i>Clip forecasts at 0</i>, forecasts below zero are clipped when the learning series is nonnegative. For solar series, keep the regular grid and select the targets to score.</li>
+    </ol>
+  </div></details>
+  <details class="sec"><summary>The metrics</summary><div><dl id="metdefs"></dl></div></details>
+  <details class="sec"><summary>Assumptions and limits</summary><div><ul>
+    <li>The series to forecast must follow the learning series directly, with the same time step and no gap. Missing values are not accepted: fill or remove them first.</li>
+    <li>Models written for solar irradiance use a clear-sky model in their papers; here the series itself (or its mean profile per phase) takes that place, so they apply to any series.</li>
+    <li>The intervals assume that the errors seen in validation stay representative of the errors on the series to forecast.</li>
+    <li>Trending series (prices, indices): models fitted on levels cannot extrapolate beyond the range of the learning series; the ELM fails there and persistence is hard to beat (NICE ≈ 1 is the expected answer). Forecasting returns or differences is often the right question.</li>
+    <li>A learning and comparison tool: it gives no investment, trading or operational advice.</li>
+  </ul></div></details>
+  <details class="sec" open><summary>Models and references</summary><div><ul class="refs" id="refs"></ul></div></details>
+
+  <details class="sec" id="cite"><summary>How to cite · BibTeX</summary><div>
+    <p>If FrugalCast helps your work, please cite the tool and the papers of the models and metrics you use. Tick what you used, then download one <code>.bib</code> file.</p>
+    <div class="citebar">
+      <label><input type="checkbox" class="pk" value="FrugalCast" checked> <b>The tool itself</b> (FrugalCast, 2026)</label>
+      <span class="sp"></span>
+      <button class="btn" type="button" id="pkUsed">Tick the papers of my 4 models</button>
+      <button class="btn" type="button" id="pkAll">All</button><button class="btn" type="button" id="pkNone">None</button>
+      <button class="btn primary sm" type="button" id="bibDl">Download .bib (<span id="pkN">0</span>)</button>
+      <button class="btn" type="button" id="bibCopy">Copy</button>
+    </div>
+    <ol class="papers">
+      <li><label><input type="checkbox" class="pk" value="Voyant2022Benchmarks" checked><span><b>Benchmarks (PER, CLIM, CLIPER, ES, ARTU).</b> Voyant C., Notton G., Duchaud J.-L., García Gutiérrez L. A., Bright J. M., Yang D. (2022). Benchmarks for solar radiation time series forecasting. <i>Renewable Energy</i> 191, 747–762. <a href="https://doi.org/10.1016/j.renene.2022.04.065">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2025Nice" checked><span><b>NICE<sup>k</sup> metrics.</b> Voyant C., Despotovic M., Garcia-Gutierrez L., Amaro e Silva R., Lauret P., Soubdhan T., Bailek N. (2025). NICE<sup>k</sup> metrics: unified and multidimensional framework for evaluating deterministic solar forecasting accuracy. <i>Sustainable Energy Technologies and Assessments</i> 83, 104588. <a href="https://doi.org/10.1016/j.seta.2025.104588">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2026Symmetry" checked><span><b>BLEND, cyclostationary operators, Holt-Winters, Theta, PAR.</b> Voyant C., Banes C., Garcia-Gutierrez L., Notton G., Despotovic M., Yaseen Z. M. (2026). Symmetry-constrained forecasting of periodically correlated energy processes. <i>Applied Mathematical Modelling</i> 157, 116988. <a href="https://doi.org/10.1016/j.apm.2026.116988">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2026Short" checked><span><b>Extreme learning machines for energy.</b> Voyant C., Despotovic M., Garcia-Gutierrez L., Asloune M., Saint-Drenan Y.-M., Duchaud J.-L., Faggianelli G. A., Magliaro E. (2026). Short-term forecasting of energy production and consumption using extreme learning machine: a comprehensive MIMO based ELM approach. <i>Applied Energy</i> 410, 127599. <a href="https://doi.org/10.1016/j.apenergy.2026.127599">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Despotovic2024Solar" checked><span><b>AR and ELM.</b> Despotovic M., Voyant C., Garcia-Gutierrez L., Almorox J., Notton G. (2024). Solar irradiance time series forecasting using auto-regressive and extreme learning methods: influence of transfer learning and clustering. <i>Applied Energy</i> 365, 123215. <a href="https://doi.org/10.1016/j.apenergy.2024.123215">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2022Complex" checked><span><b>Complex-valued AR and its intervals.</b> Voyant C., Lauret P., Notton G., Duchaud J.-L., Garcia-Gutierrez L., Faggianelli G. A. (2022). Complex-valued time series based solar irradiance forecast. <i>Journal of Renewable and Sustainable Energy</i> 14, 066502. <a href="https://doi.org/10.1063/5.0128131">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2018Periodic" checked><span><b>Periodic AR (PAR).</b> Voyant C., De Gooijer J. G., Notton G. (2018). Periodic autoregressive forecasting of global solar irradiation without knowledge-based model implementation. <i>Solar Energy</i> 174, 121–129. <a href="https://doi.org/10.1016/j.solener.2018.08.076">doi</a> · <a href="https://hal.science/hal-01872340">HAL</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2018Solar" checked><span><b>Stochastic and smart persistence.</b> Voyant C., Notton G. (2018). Solar irradiation nowcasting by stochastic persistence: a new parsimonious, simple and efficient forecasting tool. <i>Renewable and Sustainable Energy Reviews</i> 92, 343–352. <a href="https://doi.org/10.1016/j.rser.2018.04.116">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2026Stochastic" checked><span><b>Forecastability.</b> Voyant C., Julien A., Despotovic M., Notton G., Garcia-Gutierrez L. A., Nicolosi C. F., Blanc P., Bright J. (2026). Stochastic coefficient of variation: assessing the variability and forecastability of solar irradiance. <i>Renewable Energy</i> 256, 123913. <a href="https://doi.org/10.1016/j.renene.2025.123913">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Yang2020Verification" checked><span><b>Verification of deterministic forecasts.</b> Yang D., Alessandrini S., Antonanzas J., et al., Voyant C., Zhang J. (2020). Verification of deterministic solar forecasts. <i>Solar Energy</i> 210, 20–37. <a href="https://doi.org/10.1016/j.solener.2020.04.019">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Lauret2025Simple" checked><span><b>Expected errors.</b> Lauret P., David M., Le Gal La Salle J., Lorenz E., Perez R., Voyant C. (2025). A simple method for quickly estimating solar irradiance forecast errors. <i>Solar Energy</i> 301, 113821. <a href="https://doi.org/10.1016/j.solener.2025.113821">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2015Statistical" checked><span><b>A priori accuracy.</b> Voyant C., Soubdhan T., Lauret P., David M., Muselli M. (2015). Statistical parameters as a means to a priori assess the accuracy of solar forecasting models. <i>Energy</i> 90, 671–679. <a href="https://doi.org/10.1016/j.energy.2015.07.089">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2026Tolerance" checked><span><b>Spatio-temporal validation.</b> Voyant C. (2026). A tolerance-based framework for spatiotemporal forecast validation using the γ-index. <i>International Journal of Forecasting</i> 42, 1207–1214. <a href="https://doi.org/10.1016/j.ijforecast.2026.03.002">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2025Importance" checked><span><b>Clear sky and normalization.</b> Voyant C., Despotovic M., Notton G., Saint-Drenan Y.-M., Asloune M., Garcia-Gutierrez L. (2025). On the importance of clearsky model in short-term solar radiation forecasting. <i>Solar Energy</i> 294, 113490. <a href="https://doi.org/10.1016/j.solener.2025.113490">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Benkaciali2025Comparative" checked><span><b>Input selection.</b> Benkaciali S., Notton G., Voyant C. (2025). Comparative study of feature selection techniques for machine learning-based solar irradiation forecasting. <i>Sustainability</i> 17, 6400. <a href="https://doi.org/10.3390/su17146400">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Despotovic2025Transfer" checked><span><b>Transfer to scarce data.</b> Despotovic M., Notton G., Voyant C. (2025). Transfer learning for wind speed forecasting: a scalable approach for data-scarce environments. <i>International Journal of Green Energy</i> 23, 669–684. <a href="https://doi.org/10.1080/15435075.2025.2574524">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2017Machine" checked><span><b>Review.</b> Voyant C., Notton G., Kalogirou S., Nivet M.-L., Paoli C., Motte F., Fouilloy A. (2017). Machine learning methods for solar radiation forecasting: a review. <i>Renewable Energy</i> 105, 569–582. <a href="https://doi.org/10.1016/j.renene.2016.12.095">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2012Numerical" checked><span><b>ARMA and hybrids.</b> Voyant C., Muselli M., Paoli C., Nivet M.-L. (2012). Numerical weather prediction (NWP) and hybrid ARMA/ANN model to predict global radiation. <i>Energy</i> 39, 341–355. <a href="https://doi.org/10.1016/j.energy.2012.01.006">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Voyant2013Hybrid" checked><span><b>Hybrid methodology.</b> Voyant C., Muselli M., Paoli C., Nivet M.-L. (2013). Hybrid methodology for hourly global radiation forecasting in Mediterranean area. <i>Renewable Energy</i> 53, 1–11. <a href="https://doi.org/10.1016/j.renene.2012.10.049">doi</a></span></label></li>
+      <li><label><input type="checkbox" class="pk" value="PVELMpred"><span><a href="https://doi.org/10.5281/zenodo.21487267">PV_ELM_pred</a>: the ELM variants (code).</span></label></li>
+      <li><label><input type="checkbox" class="pk" value="Cyclo"><span><a href="https://doi.org/10.5281/zenodo.18812334">cyclostationary-forecasting-matlab</a>: BLEND, CLIPER, Holt-Winters, Theta, PAR (code).</span></label></li>
+      <li><label><input type="checkbox" class="pk" value="MakeStat"><span><a href="https://doi.org/10.5281/zenodo.21490744">Make_Stationary</a>: frugal deseasonalization (code).</span></label></li>
+      <li><label><input type="checkbox" class="pk" value="NICEcode"><span><a href="https://doi.org/10.5281/zenodo.23562549">nice-metrics</a>: NICE<sup>k</sup> (code).</span></label></li>
+    </ol>
+    <p class="note">All of Cyril Voyant's papers: <a href="https://www.cyrilvoyant.com/bib/">bibliography</a> (BibTeX, RIS, CSL-JSON).</p>
+  </div></details>
+
+  <details class="sec" id="code"><summary>Send a job to this page</summary><div>
+    <p>A notebook or a script can prepare a JSON job (series and settings) for this page, in two ways: a link ending in <code>#job=…</code> (button <i>Share settings</i>), or a <code>.json</code> file opened with <i>Open settings</i> or dropped on the page. The page fills in, and computes in the reader's browser when they click Run. A job may hold up to 50,000 values in each series. The format and examples are in <a href="API.md">API.md</a>. To automate forecasts (scheduled runs, saved models, several horizons, forecasts of the future), use FrugalCast Local, the Windows kit.</p>
+    <pre class="code">{ "learn": [/* values */], "forecast": [/* values */], "period": 24, "horizon": 1,
+  "models": ["cliper", "artu", "arma", "elm"], "interval": { "kind": "conformal", "coverage": 80 } }</pre>
+  </div></details>
+  <details class="sec" id="local" open><summary>FrugalCast Local: offline, on your own machine (in preparation)</summary><div>
+    <p><b>Every model and every horizon in one run, on your own computer, with nothing sent anywhere.</b> FrugalCast Local is the same engine as this page, packaged as a Windows kit run from PowerShell. It is built for data that cannot leave the premises, and for computers close to where the data are measured (edge computing): a plant, a substation, a lab server, a laptop in the field.</p>
+    <ul>
+      <li><b>Data sovereignty.</b> No cloud, no account, no network connection: the series, the fitted models and the forecasts stay on your disk. Suited to confidential, personal or critical-infrastructure data.</li>
+      <li><b>Edge and frugal.</b> Thirty light models, from persistence to extreme learning machines, that run on an ordinary PC without a GPU.</li>
+      <li><b>One run, everything.</b> All 30 models and all horizons (for example 1 to 24 steps) in a single command, with every configuration tested, its validation error, and 20 metrics on the test period.</li>
+      <li><b>Operational forecasting.</b> Fitted models are saved and reloaded without refitting: forecasts of the future, with intervals, from your latest data, run by the Windows Task Scheduler. Refit when you choose.</li>
+      <li><b>Traceable.</b> Each model follows its paper or manual exactly; a reloaded model gives the same forecasts, bit for bit, as the session that fitted it.</li>
+      <li><b>Free.</b> Free for research, teaching and other non-commercial use, with a personal key: 30-day trial, then free 3-month keys from the <a href="https://www.cyrilvoyant.com/collaborate/">Collaborate</a> page. Please cite it.</li>
+    </ul>
+    <p class="hint"><b>Not available yet.</b> The local kit and any programmatic access (API) are not available for now. To be told when it is, or to test it with your data, write through the <a href="https://www.cyrilvoyant.com/collaborate/">Collaborate</a> page.</p>
+    <table class="cmp"><thead><tr><th></th><th>This page</th><th>FrugalCast Local</th></tr></thead><tbody>
+      <tr><td>Where the data go</td><td>nowhere: computed in your browser</td><td>nowhere: computed on your computer, offline</td></tr>
+      <tr><td>Series length</td><td>10,000 values by hand</td><td>no fixed limit (memory and time only)</td></tr>
+      <tr><td>Models per run</td><td>4</td><td>all 30, or any list</td></tr>
+      <tr><td>Horizons per run</td><td>1</td><td>several at once (for example 1 to 24)</td></tr>
+      <tr><td>Fitted models</td><td>refitted at every run</td><td>saved, reloaded without refitting; refit when you choose</td></tr>
+      <tr><td>Forecasts of the future</td><td>no</td><td>yes, from your latest data, with intervals</td></tr>
+      <tr><td>Scheduled runs</td><td>no</td><td>yes, with the Windows Task Scheduler</td></tr>
+      <tr><td>Outputs</td><td>plots, CSV, JSON of one horizon</td><td>every configuration tested, test metrics, every forecast (CSV, JSON), log</td></tr>
+      <tr><td>Time stamps</td><td>none</td><td>required: gaps, duplicates and shifted series are detected</td></tr>
+      <tr><td>Long runs</td><td>stop button</td><td>Ctrl+C, time limit or STOP file; finished models are kept</td></tr>
+    </tbody></table>
+  </div></details>
+</section>
+
+<footer class="site">
+  FrugalCast · Cyril Voyant, Mines Paris – PSL · <a href="https://orcid.org/0000-0003-0242-7377">ORCID</a> · <a href="llms.txt">llms.txt</a>.
+  Methods from the papers and open repositories above; each model follows its reference code, and every adaptation is stated in engine.js.
+  Example data: hourly GHI, Kragujevac (Serbia), contains modified Copernicus Atmosphere Monitoring Service information 2026; EDF SEI open data, Corsica, hourly electricity production. Not investment advice.<br>
+  <b>Free for research, teaching and any other non-commercial use; please cite it.</b> Code: <a href="https://polyformproject.org/licenses/noncommercial/1.0.0/">PolyForm Noncommercial 1.0.0</a>; texts and figures: <a href="https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</a>; see <a href="LICENSE.md">LICENSE.md</a>. Commercial use: ask the author.
+</footer>
+<dialog id="citeDlg" aria-labelledby="citeH">
+  <h2 id="citeH">FrugalCast is free. Please cite it.</h2>
+  <p>Your results are ready. The tool is free for research, teaching and any non-commercial use, on one condition: cite it in any work that uses its results.</p>
+  <p class="cite" id="citeTxt"></p>
+  <p class="note">The papers of the models you ran are in the .bib file.</p>
+  <div class="row"><button class="btn" type="button" id="citeCopy">Copy the citation</button><button class="btn" type="button" id="citeBib">Download .bib (<span id="citeN">0</span>)</button><span class="sp"></span><button class="btn primary" type="button" id="citeOk">I will cite it</button></div>
+</dialog>
+</main>
+<script src="kalpha.js"></script>
+<script src="papers.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
