@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24197717.svg)](https://doi.org/10.5281/zenodo.24197717)
 
-**Do simple forecasting models beat persistence?** Paste any time series and compare 30 frugal forecasting models with prediction intervals and 20 deterministic and probabilistic metrics. The computation runs in your browser, so your data are never uploaded.
+**Does your model beat simple models?** Paste any time series and compare 30 frugal forecasting models with prediction intervals and 20 deterministic and probabilistic metrics. The computation runs in your browser, so your data are never uploaded.
 
 **Live tool: https://frugalcast.cyrilvoyant.com/**
 
