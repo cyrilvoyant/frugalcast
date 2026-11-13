@@ -1,0 +1,14 @@
+{
+  "title": "FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals",
+  "upload_type": "software",
+  "description": "<p>FrugalCast compares 30 frugal time series forecasting models (persistences, climatology, CLIPER, BLEND, smart persistence, exponential smoothing, ARTU, Holt-Winters, Theta, AR, ARMA, periodic AR, complex-valued AR and 14 extreme learning machines) with prediction intervals and 20 deterministic and probabilistic metrics, including NICE and CRPS. Each model follows its paper or reference code. The computation runs in the browser: the data never leave the user's computer.</p><p>Live tool: <a href=\"https://frugalcast.cyrilvoyant.com/\">https://frugalcast.cyrilvoyant.com/</a>. Free for non-commercial use (PolyForm Noncommercial 1.0.0; texts CC BY-NC 4.0).</p>",
+  "creators": [
+    { "name": "Voyant, Cyril", "affiliation": "Mines Paris – PSL, O.I.E. Laboratory, France", "orcid": "0000-0003-0242-7377" }
+  ],
+  "license": { "id": "other-nc" },
+  "access_right": "open",
+  "keywords": ["time series forecasting", "forecast benchmark", "persistence", "prediction intervals", "probabilistic forecasting", "extreme learning machine", "solar forecasting", "NICE", "CRPS"],
+  "related_identifiers": [
+    { "identifier": "https://frugalcast.cyrilvoyant.com/", "relation": "isDocumentedBy", "resource_type": "software" }
+  ]
+}

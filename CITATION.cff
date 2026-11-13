@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+title: "FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals"
+message: "FrugalCast is free for non-commercial use. If you use it, please cite it as below."
+type: software
+authors:
+  - given-names: "Cyril"
+    family-names: "Voyant"
+    affiliation: "Mines Paris – PSL, O.I.E. Laboratory, France"
+    website: "https://person.cyrilvoyant.com"
+    orcid: "https://orcid.org/0000-0003-0242-7377"
+version: "1.0.0"
+date-released: "2026-11-13"
+license: PolyForm-Noncommercial-1.0.0
+url: "https://frugalcast.cyrilvoyant.com/"
+repository-code: "https://github.com/cyrilvoyant/frugalcast"
+abstract: >-
+  FrugalCast compares 30 frugal time series forecasting models (persistences, climatology, CLIPER, BLEND,
+  smart persistence, exponential smoothing, ARTU, Holt-Winters, Theta, AR, ARMA, periodic AR, complex-valued AR
+  and 14 extreme learning machines) with prediction intervals and 20 deterministic and probabilistic metrics,
+  including NICE and CRPS. Each model follows its paper or reference code. The computation runs in the browser:
+  the data never leave the user's computer.
+keywords:
+  - time series forecasting
+  - forecast benchmark
+  - persistence
+  - prediction intervals
+  - probabilistic forecasting
+  - extreme learning machine
+  - solar forecasting
+  - NICE
+  - CRPS
