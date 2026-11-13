@@ -17,8 +17,8 @@ Page address (provisional): `https://frugalcast.cyrilvoyant.com/`
   "learn": [512.3, 498.1, 470.0],
   "forecast": [530.2, 541.7],
   "period": 24,
-  "weekly": false,
   "annual": false,
+  "weekly": false,
   "horizon": 1,
   "models": ["cliper", "artu", "arma", "elm"],
   "search": { "inputs": false, "neurons": false, "ridge": false, "smooth": true },
@@ -38,7 +38,8 @@ Every field is optional. A **settings file** has no `learn` and no `forecast`: i
 | `learn` | array of numbers (or one string, one value per line) | Learning series: at most **50,000** values in a job file or link (10,000 when pasted by hand). Fits, choices of settings and intervals all come from it. |
 | `forecast` | array of numbers | Series to forecast: at most **50,000** values in a job file or link (10,000 when pasted by hand). It follows `learn` directly, with the same time step. It is used once, for scoring. |
 | `period` | whole number of steps, or `"none"` | Steps per period (24 for hourly data with a daily cycle). `"none"`: no clock inputs; cyclic models are set aside. |
-| `weekly`, `annual` | true / false | Add the weekly or annual clock inputs (needs a period). |
+| `weekly` | true / false | Position in the week (sine and cosine) as two extra inputs of the AR and the ELMs (needs a period). |
+| `annual` | true / false | Day of the year (sine and cosine) as two extra inputs of the AR and the ELMs; the PAR works on the gap to the typical year (TMY, Eq. 6). Right only when one period is one day; needs several years of learning data (5 for the PAR). |
 | `horizon` | 1 to 100 | Lead time in steps (lags). |
 | `models` | exactly 4 ids | See § 4. |
 | `search` | `inputs`, `neurons`, `ridge`, `smooth`: true / false | Settings chosen by temporal cross-validation; `ridge: true` means λ of the ELM ridge by generalised cross-validation (GCV, Golub, Heath and Wahba 1979) in each fit. A searched setting cannot also be fixed. |
