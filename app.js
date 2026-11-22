@@ -122,8 +122,8 @@
   }
   function syncPeriod() {
     const r = readT(), none = !r.error && r.T === 0;
-    ['weeklyL', 'annualL'].forEach(id => $(id).classList.toggle('off', none || !!r.error));
-    if (none) { $('weekly').checked = false; $('annual').checked = false; }
+    ['weeklyL', 'annualL', 'prepProfL'].forEach(id => $(id).classList.toggle('off', none || !!r.error));
+    if (none) { $('weekly').checked = false; $('annual').checked = false; const pp = document.querySelector('input[name="prep"][value="profile"]'); if (pp.checked) document.querySelector('input[name="prep"][value="none"]').checked = true; }
     const lb = r.error ? null : E.inputOptions(r.T);
     $('Thint').textContent = r.error ? 'Enter a whole number of steps, or none.' : none
       ? 'Non-periodic: no clock inputs; cyclic models are set aside. Inputs are 1, 2, 4 or 8 lags.'
@@ -288,7 +288,7 @@
         return `<td${k !== null && s[c[0]] === b[c[0]] ? ' class="best"' : ''}>${fmt(s[c[0]], c[0])}</td>`;
       }).join('') + '</tr>').join('') + '</tbody>';
     const h = H();
-    $('chosen').innerHTML = `${job.cfg.norm === 'none' ? 'Errors shown in the units of the series.' : 'Normalized errors are fractions. See the notes for any change to the requested scale.'} ${job.cfg.prep === 'center' ? 'Series centred before modelling. ' : job.cfg.prep === 'standard' ? 'Series centred and scaled before modelling. ' : ''}${Math.round(100 * target)} % ${job.cfg.bandKind === 'gaussian' ? 'Gaussian' : 'empirical'} intervals. Best value in bold. Hover a column name for its definition.<br><b>Settings kept</b> — ` +
+    $('chosen').innerHTML = `${job.cfg.norm === 'none' ? 'Errors shown in the units of the series.' : 'Normalized errors are fractions. See the notes for any change to the requested scale.'} ${job.cfg.prep === 'center' ? 'Series centred before modelling. ' : job.cfg.prep === 'standard' ? 'Series centred and scaled before modelling. ' : job.cfg.prep === 'profile' ? 'Mean profile removed before modelling and added back to forecasts and intervals. ' : ''}${Math.round(100 * target)} % ${job.cfg.bandKind === 'gaussian' ? 'Gaussian' : 'empirical'} intervals. Best value in bold. Hover a column name for its definition.<br><b>Settings kept</b> — ` +
       live(h).map(id => { const c = h.models[id].chosen; const p = Object.entries(c).filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => `${k} ${typeof v === 'number' ? +v.toPrecision(4) : v}`).join(', '); return `${E.MODELS[id].name}${p ? ': ' + p : ': no setting'}`; }).join(' · ');
   }
 
@@ -543,6 +543,7 @@
       $('asymBox').classList.toggle('hidden', !$('asym').checked);
       if (iv.perPhase !== undefined) $('bandPhase').checked = !!iv.perPhase;
       if (j.prep) setRadio('prep', j.prep);
+      if (j.prep === 'profile' && !(readT().T >= 2)) { setRadio('prep', 'none'); throw new Error('"prep": "profile" (remove the mean profile) needs a period of 2 steps or more'); }
       if (j.norm) setRadio('norm', j.norm);
       if (j.clip !== undefined) $('clip').checked = !!j.clip;
       if (j.solar !== undefined) setSolar(j.solar || null);
@@ -609,16 +610,16 @@
     });
 
     // routes out
-    // settings only by default; the series only when "with the data" is ticked
+    // settings only by default; the series only when "Include my series" is ticked
     const outJob = () => { const j = current(); if (!$('jobData').checked) { delete j.learn; delete j.forecast; delete j.label; return j; } return j.learn.length ? j : null; };
     $('jobShare').addEventListener('click', async () => {
-      const j = outJob(); if (!j) return fail('Paste or load the series first, or untick "with the data".');
+      const j = outJob(); if (!j) return fail('Paste or load the series first, or untick "Include my series".');
       const link = location.origin + location.pathname + '#job=' + await pack(j);
       try { await navigator.clipboard.writeText(link); $('status').textContent = `✓ Link copied (${link.length < 2000 ? link.length + ' characters' : (link.length / 1000).toFixed(0) + ' k characters'}). It holds the settings${j.learn ? ' and the series' : ' only (no data)'}; opening it fills the page, and the bench runs in the reader's browser when they click Run.`; }
       catch { $('status').textContent = 'The browser refused the copy.'; }
     });
     $('jobSave').addEventListener('click', () => {
-      const j = outJob(); if (!j) return fail('Paste or load the series first, or untick "with the data".');
+      const j = outJob(); if (!j) return fail('Paste or load the series first, or untick "Include my series".');
       const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(j, null, 1)], { type: 'application/json' })); a.download = j.learn ? 'frugalcast-settings-and-data.json' : 'frugalcast-settings.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
     $('resJson').addEventListener('click', () => {

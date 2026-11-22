@@ -278,14 +278,27 @@
 
   function preparedContext(raw, ntrain, cfg) {
     const train = raw.subarray(0, ntrain);
-    const center = cfg.prep && cfg.prep !== 'none' ? mean(train) : 0;
+    const center = cfg.prep === 'center' || cfg.prep === 'standard' ? mean(train) : 0;
     const scale = cfg.prep === 'standard' ? (sd1(train) || 1) : 1;
-    const S = center !== 0 || scale !== 1 ? raw.map(v => (v - center) / scale) : raw;
+    // 'profile': additive mean profile, prof[k] = mean of the learning values at phase k = j mod T (same phase as timeFeat)
+    let prof = null;
+    if (cfg.prep === 'profile') {
+      const T = cfg.T;
+      if (!(T >= 2)) throw new Error('Remove the mean profile needs a period: declare the number of steps per period, or choose another preparation.');
+      if (ntrain < T) throw new Error('Remove the mean profile needs at least one full period in the learning series.');
+      const sum = new Float64Array(T), cnt = new Float64Array(T);
+      for (let j = 0; j < ntrain; j++) { sum[j % T] += raw[j]; cnt[j % T]++; }
+      prof = Float64Array.from(sum, (v, k) => v / cnt[k]);
+    }
+    const level = j => center + (prof ? prof[j % prof.length] : 0);
+    const S = prof ? raw.map((v, j) => v - prof[j % prof.length])
+      : center !== 0 || scale !== 1 ? raw.map(v => (v - center) / scale) : raw;
     const nonneg = S.subarray(0, ntrain).every(v => v >= 0);
     const origNonneg = train.every(v => v >= 0);
     const clip = cfg.clip !== false && origNonneg ? (v => Math.max(0, v)) : (v => v);
-    return { S, Ntr: ntrain, N: raw.length, cfg, T: cfg.T, center, scale, nonneg, origNonneg, clip,
-      toOriginal: v => clip(v * scale + center) };
+    // toOriginal(v, j): back to the units of the series for a forecast whose target is at index j
+    return { S, Ntr: ntrain, N: raw.length, cfg, T: cfg.T, center, scale, prof, nonneg, origNonneg, clip,
+      toOriginal: (v, j) => clip(v * scale + level(j)) };
   }
   function timeFeat(ctx, j) {
     const T = ctx.T, c = ctx.cfg, f = [];
@@ -375,6 +388,7 @@
   const fitted = (predict, state) => Object.assign(predict, { state });
   M.persistence = {
     name: 'Persistence', family: 'Persistence', ref: [REF + '/latest-publications-and-news/nice-forecast-evaluation/', 'NICE: errors relative to persistence'],
+    rawOnly: true, // a reference: always the plain value of the series, whatever the preparation
     fit: ctx => fitted(t => ctx.S[t], {}),
   };
   M.cyclic = {
@@ -382,7 +396,7 @@
     fit: (ctx, h) => fitted(t => ctx.S[cyc(ctx, t, h)], {}),
   };
   M.climatology = {
-    name: 'Climatology', family: 'Persistence', ref: [REF + '/stories/solar-forecast-baseline-deep-learning/', 'Which baseline must a model beat?'],
+    name: 'Climatology', family: 'Persistence', rawOnly: true, ref: [REF + '/stories/solar-forecast-baseline-deep-learning/', 'Which baseline must a model beat?'],
     fit: (ctx, h, ts) => { const m = mean(ts.map(t => ctx.S[t + h])); return fitted(() => m, { m }); },
   };
   M.cycleclim = {
@@ -1234,7 +1248,7 @@
     const { center: m0, scale: s0, origNonneg, clip: clipO } = ctx;
     cfg.lbOpts = cfg.lbOpts || E.inputOptions(cfg.T);
     const clip = (cfg.clip !== false && ctx.nonneg) ? (v => (v < 0 ? 0 : v)) : (v => v);
-    const out = { horizons: [], skipped: [], nonneg: origNonneg, prep: { mean: m0, sd: s0 } };
+    const out = { horizons: [], skipped: [], nonneg: origNonneg, prep: { mean: m0, sd: s0, profile: ctx.prof ? Array.from(ctx.prof) : undefined } };
     let sol = null;
     if (cfg.solar) {
       if (!origNonneg || job.test.some(v => v < 0)) throw new Error('Solar series: learning and test values must be nonnegative before centring or scaling. Correct the source data or untick Solar series.');
@@ -1253,7 +1267,7 @@
       if (m.needs && cfg.T >= 2) { const why = m.needs(job, cfg); if (why) { out.skipped.push({ id, name: m.name, why }); continue; } }
       if (m.needsCycle && cfg.T < 2) { out.skipped.push({ id, name: m.name, why: 'needs a period, and the series was declared non-periodic (or with fewer than 2 steps per period)' }); continue; }
       if (m.needsPositive && !ctx.S.subarray(0, ctx.Ntr).every(v => v > 0)) { out.skipped.push({ id, name: m.name, why: 'needs strictly positive values' }); continue; }
-      if (m.needsNonneg && !ctx.nonneg) { out.skipped.push({ id, name: m.name, why: 'needs values ≥ 0 (its transform takes the logarithm of y + c)' + (m0 !== 0 ? '; use the series as it is, not centred' : '') }); continue; }
+      if (m.needsNonneg && !ctx.nonneg) { out.skipped.push({ id, name: m.name, why: 'needs values ≥ 0 (its transform takes the logarithm of y + c)' + (m0 !== 0 || ctx.prof ? '; use the series as it is, not centred' : '') }); continue; }
       if (m.needsCycle && job.train.length < 3 * cfg.T) { out.skipped.push({ id, name: m.name, why: 'needs at least three periods in the learning series' }); continue; }
       ids.push(id);
     }
@@ -1268,7 +1282,7 @@
         const fitTs = smp.tr.slice(0, fitEnd);
         const context = preparedContext(Sorig, fitTs[fitEnd - 1] + h + 1, cfg);
         // One common unit for CV comparison and interval calibration, even with per-fold preparation.
-        const errorAt = (t, prediction) => (Sorig[t + h] - context.toOriginal(prediction)) / s0;
+        const errorAt = (t, prediction) => (Sorig[t + h] - context.toOriginal(prediction, t + h)) / s0;
         return { a, b, fitEnd, fitTs, context, errorAt };
       });
       if (!smp.folds.length) throw new Error(`Horizon ${h}: not enough learning samples for purged cross-validation; paste a longer learning series.`);
@@ -1301,16 +1315,26 @@
       // the persistence reference follows the same rule, so that NICE compares like with like on every hour
       const persAll = night ? pers.map((v, i) => (night[i] ? 0 : v)) : pers;
       const sy = sub(y), sp = sub(persAll);
+      // 'profile' preparation: the references (rawOnly: persistence, climatology) stay on the plain series
+      let raw = null;
+      if (ctx.prof) {
+        const cfgN = Object.assign({}, cfg, { prep: 'none' }), ctxN = preparedContext(Sorig, ctx.Ntr, cfgN);
+        raw = { ctx: ctxN, clip: (cfg.clip !== false && ctxN.nonneg) ? (v => (v < 0 ? 0 : v)) : (v => v),
+          smp: Object.assign({}, smp, { folds: smp.folds.map(f => {
+            const context = preparedContext(Sorig, f.fitTs[f.fitEnd - 1] + h + 1, cfgN);
+            return Object.assign({}, f, { context, errorAt: (t, prediction) => (Sorig[t + h] - context.toOriginal(prediction, t + h)) / s0 });
+          }) }) };
+      }
       for (const id of ids) {
         const m = M[id], u = unit(id), nIt = (cfg.opt.inputs ? cfg.lbOpts.length : 1) * ((cfg.opt.inputs || cfg.opt.neurons) ? cfg.ncand : cfg.ncandFixed);
         const step = (m.isELM || m.isELMv) ? u / nIt : m.usesInputs ? 1 : u;
         const tick = () => { done += step; hooks.progress && hooks.progress(Math.min(1, done / total), `${m.name}, horizon ${h}`); };
-        let r;
+        let r; const useRaw = raw && m.rawOnly, mctx = useRaw ? raw.ctx : ctx;
         if (m.isELMv || m.isELM) r = runELM(ctx, m, h, smp, clip, tick, hooks.stop);
         else if (m.usesInputs) r = runAR(ctx, m, h, smp, clip, tick);
-        else { r = runSimple(ctx, m, h, smp, clip); tick(); }
+        else { r = useRaw ? runSimple(raw.ctx, m, h, raw.smp, raw.clip) : runSimple(ctx, m, h, smp, clip); tick(); }
         // back to the units of the series (residuals scaled by s0; scaled residuals of complex AR stay unitless, their scale is mapped)
-        r.pred = r.pred.map(ctx.toOriginal);
+        r.pred = r.pred.map((v, i) => mctx.toOriginal(v, smp.te[i] + h));
         if (r.scale) r.scale = r.scale.map(v => v * s0); else r.resid = r.resid.map(v => v * s0);
         let ph = null;
         if (cfg.bandPhase && cfg.T >= 2) { // phase of the target of each out-of-fold residual (same folds and order in every run* routine)

@@ -60,7 +60,7 @@ Every field is optional. A **settings file** has no `learn` and no `forecast`: i
 
 ### a. A link: `#job=…`
 
-The button **Share settings** builds it from the page: settings only, or settings and series when *with the data* is ticked. You can also write it yourself:
+The button **Share settings** builds it from the page: settings only, or settings and series when *Include my series* is ticked. You can also write it yourself:
 
 - `#job=` followed by the JSON, URL-encoded (`encodeURIComponent`): fine for short series;
 - or `#job=z` followed by the JSON compressed with raw DEFLATE and encoded in base64url. This is what the button makes; it is about 3 times shorter.
@@ -83,7 +83,7 @@ Browsers accept links of several megabytes. For long series, a file is simpler.
 
 ### b. A local file
 
-Button **Open settings**, or drop the `.json` file on the page. **Save settings** writes the current settings as a file (with the series when *with the data* is ticked).
+Button **Open settings**, or drop the `.json` file on the page. **Save settings** writes the current settings as a file (with the series when *Include my series* is ticked).
 
 ### Automation
 
