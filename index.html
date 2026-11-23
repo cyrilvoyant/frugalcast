@@ -84,7 +84,7 @@
     <div class="card">
       <div class="dhead"><b>Series to forecast</b><span class="badge" id="nfore"></span></div>
       <textarea id="fore" spellcheck="false" placeholder="Paste here: at most 10,000 values. It must follow the learning series in time, with the same time step."></textarea>
-      <p class="hint">At most 10,000 values (50,000 in a job file or link). It follows the learning series directly; it is used only to score the forecasts.</p>
+      <p class="hint">At most 10,000 values (50,000 in a job file or link). It follows the learning series directly. It gives the values to score; at each forecast time, the values already observed serve as inputs, never later ones.</p>
     </div>
   </div>
   <div class="toolbar"><select id="exsel" aria-label="Example data" style="width:auto;display:inline-block;margin:0"><option value="ghi" selected>Solar irradiance (GHI), hourly, CAMS open data</option><option value="edf">Electricity production, Corsica, hourly, EDF open data</option></select><button class="btn" id="example" type="button">Load the example</button><small class="note" id="exlabel" style="margin:0"></small></div>
