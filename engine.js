@@ -548,7 +548,7 @@
     //  Eq. (8)  l-step forecast by recursion, each step with the coefficients of its own phase (Eq. 4), then + TMY of the target.
     //  Tool bounds, not in the paper: p(h) from 1 to min(2 T, 48); the paper's backward bootstrap intervals are replaced by the common CV residuals.
     needs: (job, cfg) => cfg.annual && job.train.length < 5 * 365 * cfg.T
-      ? `the TMY version (Eq. 6, "annual" ticked) needs a full year in every cross-validation fit, i.e. at least ${(5 * 365 * cfg.T).toLocaleString('en')} learning values; untick "annual" for the PAR of Eq. (4)` : '',
+      ? `the average-year version (Eq. 6, "annual" ticked) needs five years of learning data (one year in every cross-validation fit), i.e. at least ${(5 * 365 * cfg.T).toLocaleString('en')} learning values; untick "annual" for the PAR of Eq. (4)` : '',
     fit: (ctx, h, ts) => {
       const S = ctx.S, T = ctx.T, N = ctx.N, end = ts[ts.length - 1] + h, pmax = Math.min(2 * T, 48), Y = 365 * T;
       const w = new Float64Array(N); let tmy = () => 0, annualProfile = null;

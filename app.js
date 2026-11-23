@@ -21,7 +21,7 @@
     artu: 'Second-order AR whose two coefficients come from tables of ρ(h) and ρ(2h).',
     ar: 'Linear model on the last values (and clock inputs), fitted by least squares.',
     arma: 'ARMA(p, 1) on the series minus its seasonal component (mean of each phase): Hannan-Rissanen estimation, a long Yule-Walker AR for the innovations, then least squares (Brockwell and Davis, 2016).',
-    par: 'One AR model per phase, fitted by least squares, order of each phase chosen by BIC, forecast by recursion (Voyant, De Gooijer and Notton, 2018). With "annual" ticked: on the series minus its typical year (TMY).',
+    par: 'One AR model per phase, fitted by least squares, order of each phase chosen by BIC, forecast by recursion (Voyant, De Gooijer and Notton, 2018). With "annual" ticked: on the gap to the average year (Eq. 6).',
     holtwinters: 'Level, trend and seasonal profile updated at each step.',
     theta: 'Theta line: the series pulled toward its trailing trend, plus the seasonal profile.',
     complexar: 'Level and volatility as one complex number; its interval opens when the series gets unstable.',
@@ -99,7 +99,15 @@
   $('metsel').addEventListener('change', () => { picked = [...document.querySelectorAll('#metsel input:checked')].map(c => c.value); store.set('metrics', picked); if (result) table(); });
 
   // ---------- inputs ----------
-  const count = (id, out) => { const r = E.parse($(id).value, 'x'); $(out).textContent = r.values && r.values.length ? `${r.values.length.toLocaleString('en')} values` : ''; };
+  let learnN = 0;
+  const count = (id, out) => { const r = E.parse($(id).value, 'x'); const n = r.values ? r.values.length : 0; $(out).textContent = n ? `${n.toLocaleString('en')} values` : ''; if (id === 'learn') { learnN = n; syncAnnual(); } };
+  // annual cycle: only when one period can be one day (T >= 24) and the learning series covers two years
+  function annualNeed() { const r = readT(); return !r.error && r.T >= 24 ? 730 * r.T : 0; }
+  function syncAnnual() {
+    const need = annualNeed(), ok = need > 0 && learnN >= need;
+    $('annualL').classList.toggle('off', !ok); if (!ok) $('annual').checked = false;
+    $('annualWhy').textContent = ok ? '' : need ? `(needs two years of learning data: ${need.toLocaleString('en')} values)` : '(needs one period = one day: 24, 48 or 96 steps)';
+  }
   $('learn').addEventListener('input', () => { maxLearn = 10000; count('learn', 'nlearn'); });
   $('fore').addEventListener('input', () => count('fore', 'nfore'));
   function syncSearch() {
@@ -136,7 +144,7 @@
   }
   function syncPeriod() {
     const r = readT(), none = !r.error && r.T === 0;
-    ['weeklyL', 'annualL', 'prepProfL'].forEach(id => $(id).classList.toggle('off', none || !!r.error));
+    ['weeklyL', 'prepProfL'].forEach(id => $(id).classList.toggle('off', none || !!r.error));
     if (none) { $('weekly').checked = false; $('annual').checked = false; const pp = document.querySelector('input[name="prep"][value="profile"]'); if (pp.checked) document.querySelector('input[name="prep"][value="none"]').checked = true; }
     const lb = r.error ? null : E.inputOptions(r.T);
     $('Thint').textContent = r.error ? 'Enter a whole number of steps, or none.' : none
@@ -145,6 +153,7 @@
     $('lbUnit').textContent = none ? '(lags)' : '(periods)';
     if (lb) [...$('lbFix').options].forEach((o, i) => { o.textContent = none ? `${lb[i]} lag${lb[i] > 1 ? 's' : ''}` : `${['0.5', '1', '1.5', '2'][i]} period${i ? 's' : ''} = ${lb[i]} lags`; });
     $('optInL').textContent = none ? 'Inputs: 1, 2, 4, 8 lags' : 'Inputs: 0.5, 1, 1.5, 2 periods';
+    syncAnnual();
   }
   $('T').addEventListener('input', syncPeriod);
   $('Tquick').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; $('T').value = b.dataset.v; syncPeriod(); });
@@ -537,6 +546,7 @@
       if (j.period !== undefined) $('T').value = j.period === null || j.period === 0 ? 'none' : String(j.period);
       syncPeriod();
       if (j.weekly !== undefined) $('weekly').checked = !!j.weekly;
+      if (j.annual) { const need = annualNeed(); if (!(need > 0 && learnN >= need)) throw new Error(need ? `"annual" needs two years of learning data: at least ${need.toLocaleString('en')} values` : '"annual" needs one period = one day (24, 48 or 96 steps, for instance)'); }
       if (j.annual !== undefined) $('annual').checked = !!j.annual;
       if (j.horizon !== undefined) { if (!(Number.isInteger(+j.horizon) && +j.horizon >= 1 && +j.horizon <= 100)) throw new Error('"horizon" must be a whole number from 1 to 100'); $('horizon').value = String(+j.horizon); }
       if (j.models) {

@@ -39,7 +39,7 @@ Every field is optional. A **settings file** has no `learn` and no `forecast`: i
 | `forecast` | array of numbers | Series to forecast: at most **50,000** values in a job file or link (10,000 when pasted by hand). It follows `learn` directly, with the same time step. It supplies the observed targets for evaluation. At each forecast origin, test values already observed can also be used as inputs; future values are not used. |
 | `period` | whole number of steps, or `"none"` | Steps per period (24 for hourly data with a daily cycle). `"none"`: no clock inputs; cyclic models are set aside. |
 | `weekly` | true / false | Position in the week (sine and cosine) as two extra inputs of the AR and the ELMs (needs a period). |
-| `annual` | true / false | Day of the year (sine and cosine) as two extra inputs of the AR and the ELMs; the PAR works on the gap to the typical year (TMY, Eq. 6). Right only when one period is one day; needs several years of learning data (5 for the PAR). |
+| `annual` | true / false | Day of the year (sine and cosine) as two extra inputs of the AR and the ELMs; the PAR works on the gap to the average year (mean of each hour of each calendar day over the years; TMY in the paper, Eq. 6). Needs one period = one day and at least two years of learning data (5 for the PAR); a job that asks for it otherwise is refused. |
 | `horizon` | 1 to 100 | Lead time in steps (lags). |
 | `models` | exactly 4 ids | See § 4. |
 | `search` | `inputs`, `neurons`, `ridge`, `smooth`: true / false | Settings chosen by temporal cross-validation; `ridge: true` means λ of the ELM ridge by generalised cross-validation (GCV, Golub, Heath and Wahba 1979) in each fit. A searched setting cannot also be fixed. |
