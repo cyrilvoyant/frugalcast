@@ -35,11 +35,18 @@
 <body>
 <div class="topbar"><div class="wrap">
   <strong>FrugalCast</strong><span class="motto">by Cyril Voyant · Mines Paris – PSL</span>
-  <nav><a href="#cite" onclick="document.getElementById('cite').open=true">Cite</a><a href="#code" onclick="document.getElementById('code').open=true">Send a job</a><a href="#local" onclick="document.getElementById('local').open=true">Offline kit</a><a href="https://www.cyrilvoyant.com/teaching/solar-forecasting-course/">Course</a><a href="https://www.cyrilvoyant.com/tools/extreme-learning-machine/">Understanding the ELM</a><a href="https://github.com/cyrilvoyant">Code</a><a href="https://www.cyrilvoyant.com/">Website</a></nav>
+  <nav><a href="#video" class="vidOpen" hidden>▶ Video tour</a><a href="#cite" onclick="document.getElementById('cite').open=true">Cite</a><a href="#code" onclick="document.getElementById('code').open=true">Send a job</a><a href="#local" onclick="document.getElementById('local').open=true">Offline kit</a><a href="https://www.cyrilvoyant.com/teaching/solar-forecasting-course/">Course</a><a href="https://www.cyrilvoyant.com/tools/extreme-learning-machine/">Understanding the ELM</a><a href="https://github.com/cyrilvoyant">Code</a><a href="https://www.cyrilvoyant.com/">Website</a></nav>
 </div></div>
 
 <main class="wrap">
 <section class="hero">
+  <p class="kicker">Free for research and teaching · runs in your browser · your data never leave it</p>
+  <h1>Does your model beat simple models?</h1>
+  <p class="lead"><b>FrugalCast</b> runs 30 frugal forecasting models on your own time series (solar irradiance, PV power, wind, electricity load, prices, weather) and scores them honestly: same samples, same cross-validation, prediction intervals for all, and every metric that matters.</p>
+  <div class="chips"><span>Persistences · CLIM · CLIPER · ES · ARTU</span><span>BLEND · Holt-Winters · Theta</span><span>AR · ARMA · PAR · complex AR</span><span>14 extreme learning machines</span><span>Conformal or Gaussian intervals</span><span>20 metrics: R² · NICE · CRPS · PICP…</span></div>
+  <div class="quick"><span><b>1</b> Paste two series</span><span><b>2</b> Say if it has a period</span><span><b>3</b> Pick four models and run</span><button class="btn" type="button" id="tryEx">Try it with the example →</button></div>
+  <p class="universal">For <b>any time series</b> with a regular time step: solar or wind power, electricity load, temperature, river flow, traffic, sales, prices, stock indices, macroeconomic indicators… If the series has a period (a day, a week, a year), give its number of steps; otherwise write <b>none</b>, and the models use the past values only.</p>
+  <div class="hero-side">
   <svg class="deco" viewBox="0 0 520 300" aria-hidden="true">
     <defs><linearGradient id="fade" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".35" stop-color="#fff" stop-opacity="1"/></linearGradient>
       <mask id="m"><rect width="520" height="300" fill="url(#fade)"/></mask></defs>
@@ -53,12 +60,8 @@
       <line x1="300" y1="30" x2="300" y2="270" stroke="#46586a" stroke-dasharray="3 4" opacity=".5"/>
     </g>
   </svg>
-  <p class="kicker">Free for research and teaching · runs in your browser · your data never leave it</p>
-  <h1>Does your model beat simple models?</h1>
-  <p class="lead"><b>FrugalCast</b> runs 30 frugal forecasting models on your own time series (solar irradiance, PV power, wind, electricity load, prices, weather) and scores them honestly: same samples, same cross-validation, prediction intervals for all, and every metric that matters.</p>
-  <div class="chips"><span>Persistences · CLIM · CLIPER · ES · ARTU</span><span>BLEND · Holt-Winters · Theta</span><span>AR · ARMA · PAR · complex AR</span><span>14 extreme learning machines</span><span>Conformal or Gaussian intervals</span><span>20 metrics: R² · NICE · CRPS · PICP…</span></div>
-  <div class="quick"><span><b>1</b> Paste two series</span><span><b>2</b> Say if it has a period</span><span><b>3</b> Pick four models and run</span><button class="btn" type="button" id="tryEx">Try it with the example →</button></div>
-  <p class="universal">For <b>any time series</b> with a regular time step: solar or wind power, electricity load, temperature, river flow, traffic, sales, prices, stock indices, macroeconomic indicators… If the series has a period (a day, a week, a year), give its number of steps; otherwise write <b>none</b>, and the models use the past values only.</p>
+  <figure id="video" class="vthumb" hidden><div id="vidBox"><button type="button" id="vidPlay" aria-label="Play the video tour (from YouTube)"><img src="video-thumb.jpg" width="640" height="360" alt="FrugalCast video tour: forecast, compare, understand" loading="lazy" decoding="async"><span class="play" aria-hidden="true">▶</span></button></div><figcaption><a id="vidYT" href="#">Open on YouTube</a></figcaption></figure>
+  </div>
 </section>
 
 <section class="step" style="--sc:var(--p2)">

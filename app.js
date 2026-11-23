@@ -672,5 +672,17 @@
   self.FrugalCast = { pack: API.pack, unpack: API.unpack };
 
   let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => result && (drawSeries(), drawDx()), 150); });
+  // video tour, hosted on YouTube: a local thumbnail (21 kB) stays hidden until an id is set; nothing is loaded from YouTube before the click
+  const YT_ID = 'GGKfmyKVib8' || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).get('yt')) || '';
+  if (YT_ID) {
+    const fig = $('video'), play = () => {
+      if (fig.querySelector('iframe')) return;
+      $('vidBox').innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${YT_ID}?autoplay=1&rel=0&cc_load_policy=1&hl=en" title="FrugalCast: a guided tour" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+    };
+    fig.hidden = false; fig.closest('.hero').classList.add('has-video');
+    $('vidYT').href = `https://www.youtube.com/watch?v=${YT_ID}`;
+    $('vidPlay').addEventListener('click', play);
+    document.querySelectorAll('.vidOpen').forEach(a => { a.hidden = false; a.addEventListener('click', e => { e.preventDefault(); fig.scrollIntoView({ behavior: 'smooth', block: 'center' }); play(); }); });
+  }
   syncPeriod(); syncSearch(); syncLevels();
 })();

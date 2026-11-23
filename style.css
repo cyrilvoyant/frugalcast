@@ -207,3 +207,15 @@ body.dropping::after{content:"Drop the .json job here";position:fixed;inset:12px
 @media (max-width:600px){.cmp td:first-child{white-space:normal}}
 
 .datarules{margin:0 0 12px;padding:10px 14px;border-left:4px solid var(--p2, #07569a);background:rgba(7,86,154,.06);border-radius:6px;font-size:.9rem;line-height:1.5}
+/* short video: drawing above, local thumbnail below (right column on wide screens); the YouTube player replaces the thumbnail only after the click */
+.vthumb{margin:20px 0 0;max-width:520px;position:relative;z-index:1}
+.vthumb button{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:#000;position:relative}
+.vthumb img,.vthumb iframe{display:block;width:100%;height:auto;aspect-ratio:16/9;border:0;border-radius:10px}
+.vthumb .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:64px;height:64px;border-radius:50%;background:rgba(7,86,154,.92);color:#fff;font-size:26px;display:grid;place-items:center;padding-left:4px;box-shadow:0 6px 20px rgba(0,0,0,.3);transition:transform .15s}
+.vthumb button:hover .play,.vthumb button:focus-visible .play{transform:translate(-50%,-50%) scale(1.1)}
+.vthumb figcaption{margin-top:6px;font-size:.8rem;text-align:right}
+@media (min-width:1100px){.hero.has-video{padding-right:520px}
+.hero.has-video .hero-side{position:absolute;right:30px;top:18px;width:460px}
+.hero.has-video svg.deco{position:static;display:block;width:100%;height:auto;aspect-ratio:520/300;margin:-10px 0 -30px}
+.hero.has-video .vthumb{margin:6px 0 0;max-width:none}}
+
