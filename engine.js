@@ -7,7 +7,8 @@
    - hyperparameters chosen by expanding-window temporal CV (k = 5, 4 folds) on the learning series only;
    - ELM: H = g(X IW' + bias), IW ~ U(-1, 1), bias ~ U(0, 1), target centred and scaled on the fit part,
      beta = (H'H + lam I)^-1 H'z; random generator mulberry32 so that the Python reference gives the same draws.
-   Intervals (all models): split-conformal on the out-of-fold residuals of the 4 CV folds, per horizon. */
+   Intervals (all models): conformal-style ranks of the out-of-fold errors of CV folds 2 to 4 (the first fold,
+     fitted on the first block only, is left out), per horizon; climatology always gets a global interval. */
 (function (root) {
   'use strict';
   const E = {};
@@ -396,7 +397,7 @@
     fit: (ctx, h) => fitted(t => ctx.S[cyc(ctx, t, h)], {}),
   };
   M.climatology = {
-    name: 'Climatology', family: 'Persistence', rawOnly: true, ref: [REF + '/stories/solar-forecast-baseline-deep-learning/', 'Which baseline must a model beat?'],
+    name: 'Climatology', family: 'Persistence', rawOnly: true, globalBand: true, ref: [REF + '/stories/solar-forecast-baseline-deep-learning/', 'Which baseline must a model beat?'],
     fit: (ctx, h, ts) => { const m = mean(ts.map(t => ctx.S[t + h])); return fitted(() => m, { m }); },
   };
   M.cycleclim = {
@@ -1349,13 +1350,22 @@
         // back to the units of the series (residuals scaled by s0; scaled residuals of complex AR stay unitless, their scale is mapped)
         r.pred = r.pred.map((v, i) => mctx.toOriginal(v, smp.te[i] + h));
         if (r.scale) r.scale = r.scale.map(v => v * s0); else r.resid = r.resid.map(v => v * s0);
+        // calibration errors: out-of-fold errors of folds 2 to 4 (same folds and order in every run* routine);
+        // the first fold, fitted on the first block only (one fifth of the learning series), is left out
+        const nOOF = smp.folds.reduce((s, { a, b }) => s + b - a, 0);
+        if (r.resid.length !== nOOF) throw new Error(`${m.name}: ${r.resid.length} out-of-fold errors for ${nOOF} validation targets.`);
+        const calFolds = smp.folds.length > 1 ? smp.folds.slice(1) : smp.folds, skip0 = smp.folds.length > 1 ? smp.folds[0].b - smp.folds[0].a : 0;
+        const cres = Array.prototype.slice.call(r.resid, skip0);
         let ph = null;
-        if (cfg.bandPhase && cfg.T >= 2) { // phase of the target of each out-of-fold residual (same folds and order in every run* routine)
-          const rph = []; for (const { a, b } of smp.folds) for (let i = a; i < b; i++) rph.push((smp.tr[i] + h) % cfg.T);
+        const perPhase = cfg.bandPhase && cfg.T >= 2 && !m.globalBand;
+        if (perPhase) { // phase of the target of each calibration error
+          const rph = []; for (const { a, b } of calFolds) for (let i = a; i < b; i++) rph.push((smp.tr[i] + h) % cfg.T);
           ph = { T: cfg.T, rph, tph: smp.te.map(t => (t + h) % cfg.T) };
         }
         const asymmetric = cfg.bandAsym !== undefined ? cfg.bandAsym : true;
-        const bd0 = band(r.pred, r.resid, cfg.qlo, cfg.qhi, clipO, cfg.bandKind, r.scale, ph, asymmetric);
+        const bd0 = band(r.pred, cres, cfg.qlo, cfg.qhi, clipO, cfg.bandKind, r.scale, ph, asymmetric);
+        bd0.calibration = Object.assign({}, bd0.calibration, { folds: `${smp.folds.length - calFolds.length + 1} to ${smp.folds.length} of ${smp.folds.length}`, perPhase: !!ph });
+        if (m.globalBand && cfg.bandPhase) bd0.notes = Object.assign({}, bd0.notes, { globalBand: `${m.name}: a constant forecast, so one global interval (not per phase).` });
         if (hooks.capture) hooks.capture({ id, h, ctx, smp, r, bd: bd0 });
         // solar rule (S1): observed 0 → forecast, limits and centiles 0; the forecast distribution there is a point mass at 0
         const bd = night ? Object.assign({}, bd0, { lo: bd0.lo.map((v, i) => (night[i] ? 0 : v)), hi: bd0.hi.map((v, i) => (night[i] ? 0 : v)),
@@ -1364,9 +1374,9 @@
         const sbd = selectBand(bd);
         H.models[id] = { pred: r.pred, lo: bd.lo, hi: bd.hi, chosen: r.chosen || {}, nparams: r.nparams || 0, cv: r.cv,
           tried: (r.tried || []).map(o => Object.assign({}, o, { cvRmse: o.cv * s0 })), cvDen: cvNormal.value, cvFolds: r.cvFolds,
-          cvRmse: r.cv * s0, score: scores(sy, sub(r.pred), sp, sbd, cfg.norm, cfg.qlo, cfg.qhi), resid: { lo: bd.rlo, hi: bd.rhi, n: r.resid.length },
+          cvRmse: r.cv * s0, score: scores(sy, sub(r.pred), sp, sbd, cfg.norm, cfg.qlo, cfg.qhi), resid: { lo: bd.rlo, hi: bd.rhi, n: cres.length },
           scoreAll: pick ? scores(y, r.pred, persAll, bd, cfg.norm, cfg.qlo, cfg.qhi) : undefined, night: night ? night.reduce((a, b) => a + b, 0) : 0,
-          interval: bd0.calibration, qq: qq(sy, sub(r.pred), sbd, r.resid), cent: bd.cent, cph: bd.cph, low0: clipO(-1) === 0, sc: r.scale ? bd.sc : null };
+          interval: bd0.calibration, qq: qq(sy, sub(r.pred), sbd, cres), cent: bd.cent, cph: bd.cph, low0: clipO(-1) === 0, sc: r.scale ? bd.sc : null };
       }
       H.persistence = scores(sy, sp, sp, band(sp, [0], cfg.qlo, cfg.qhi, v => v, 'gaussian'), cfg.norm, cfg.qlo, cfg.qhi);
       out.horizons.push(H);
