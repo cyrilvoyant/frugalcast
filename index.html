@@ -83,26 +83,26 @@
   <div class="prep card">
     <div><b>Before modelling</b>
       <div class="radio" role="radiogroup" aria-label="Preparation of the series">
-        <label><input type="radio" name="prep" value="none" checked> Use the series as it is</label>
-        <label><input type="radio" name="prep" value="center"> Centre it <small>(minus its mean)</small></label>
-        <label><input type="radio" name="prep" value="standard"> Centre and scale it <small>(÷ standard deviation)</small></label>
-        <label id="prepProfL"><input type="radio" name="prep" value="profile"> Remove the mean profile <small>(minus the mean value at each step of the period; periodic series only)</small></label>
+        <label title="The models work on the raw values. The usual choice."><input type="radio" name="prep" value="none" checked> Use the series as it is <span class="tip" aria-hidden="true">ⓘ</span></label>
+        <label title="The mean of the learning series is subtracted before modelling and added back to the forecasts. Helps models that work best around 0."><input type="radio" name="prep" value="center"> Centre it <small>(minus its mean)</small> <span class="tip" aria-hidden="true">ⓘ</span></label>
+        <label title="The series is centred, then divided by its standard deviation, so that it has mean 0 and spread 1; forecasts are converted back. Useful when the values are very large or very small."><input type="radio" name="prep" value="standard"> Centre and scale it <small>(÷ standard deviation)</small> <span class="tip" aria-hidden="true">ⓘ</span></label>
+        <label id="prepProfL" title="The average cycle (for hourly data: the mean value at each hour of the day) is subtracted, so the models only have to predict the departures from it; it is added back to the forecasts. Useful for simple models that cannot follow a cycle on their own."><input type="radio" name="prep" value="profile"> Remove the mean profile <small>(minus the mean value at each step of the period; periodic series only)</small> <span class="tip" aria-hidden="true">ⓘ</span></label>
       </div>
       <p class="hint">Centring makes values negative: the three ELMs that take a logarithm (log-MSE, Box-Cox, GLM Gamma) are then set aside.</p>
       <p class="hint">Mean, standard deviation and mean profile are those of the learning series. The mean profile is added back, step by step, to forecasts and intervals, which stay in the units of the series. Persistence and climatology, the references, always use the series as it is.</p>
       <label class="chk" title="Forecasts and interval limits below 0 are set to 0 when the learning series has no negative value. The rule applies independently of the observed target."><input type="checkbox" id="clip" checked> Clip forecasts at 0 <span class="tip" aria-hidden="true">ⓘ</span></label>
       <label class="chk" title="For nonnegative GHI, GTI and PV power. Where the observed value is 0 (night), the forecast, its limits and its centiles are written as 0. This is NOT causal: it uses the observation, so it is a retrospective view. For real forecasting, filtering the night is your job (for instance from the sun position at your site). Scores on positive observed targets do not depend on this rule."><input type="checkbox" id="solar"> Solar series (GHI, GTI, PV) <span class="tip" aria-hidden="true">ⓘ</span></label>
       <div id="solarBox" class="hidden">
-        <label for="solScore">Scores on</label><select id="solScore"><option value="day" selected>positive observed targets</option><option value="all">all observed targets</option></select>
+        <label for="solScore" title="Positive observed targets: only daytime hours are scored, the usual choice for solar data. All observed targets: the night is included; night values are easy (0), so the scores look better than they are.">Scores on <span class="tip" aria-hidden="true">ⓘ</span></label><select id="solScore"><option value="day" selected>positive observed targets</option><option value="all">all observed targets</option></select>
         <label for="solCv" title="Validation error used to select model settings. The positive-target option averages RMSE across folds with at least one positive target. When no fold qualifies, selection uses all targets. Interval calibration always uses every validation error of folds 2 to 4.">Settings chosen on</label><select id="solCv"><option value="all" selected>all validation targets</option><option value="day">positive validation targets</option></select>
         <p class="hint">Keep every time step, including night. Where the observation is 0, the forecast and its limits are written as 0: <b>not causal</b> (retrospective view). In real use, filtering the night is your job. Scores on positive targets do not depend on it.</p>
       </div>
     </div>
     <div><b>Normalized errors</b> <small>(nRMSE, nMAE, nMBE, nMIL, nCRPS)</small>
       <div class="radio" role="radiogroup" aria-label="Normalization of the errors">
-        <label><input type="radio" name="norm" value="mean" checked> ÷ mean of the observations</label>
-        <label><input type="radio" name="norm" value="sd"> ÷ standard deviation</label>
-        <label><input type="radio" name="norm" value="none"> No normalization <small>(units of the series)</small></label>
+        <label title="Errors divided by the mean of the observed values: nRMSE = 0.2 means an error of about 20 % of the average level. Usual for solar and load forecasting. If the mean is close to 0, the standard deviation is used instead (a note says so)."><input type="radio" name="norm" value="mean" checked> ÷ mean of the observations <span class="tip" aria-hidden="true">ⓘ</span></label>
+        <label title="Errors divided by the standard deviation of the observed values: nRMSE = 1 means the error is as large as the natural spread of the series. Works for any sign of the data."><input type="radio" name="norm" value="sd"> ÷ standard deviation <span class="tip" aria-hidden="true">ⓘ</span></label>
+        <label title="nRMSE, nMAE and the other normalized errors equal RMSE, MAE… in the units of the series (W/m², MW, euros…)."><input type="radio" name="norm" value="none"> No normalization <small>(units of the series)</small> <span class="tip" aria-hidden="true">ⓘ</span></label>
       </div>
       <p class="hint">Use the standard deviation, or none, when the mean is close to zero (returns, anomalies, centred series).</p>
     </div>
@@ -114,7 +114,7 @@
   <div class="four">
     <div class="card top" style="--c:var(--p2)">
       <h3>Period and horizon</h3>
-      <label for="T">Steps per period, or <b>none</b></label>
+      <label for="T" title="How many time steps make one full cycle of the series: 24 for hourly data with a daily cycle, 12 for monthly data with a yearly cycle, 7 for daily data with a weekly cycle. Write none if the series has no cycle: the cyclic models are then set aside.">Steps per period, or <b>none</b> <span class="tip" aria-hidden="true">ⓘ</span></label>
       <input type="text" id="T" value="24" autocomplete="off">
       <div class="seg" id="Tquick">
         <button type="button" data-v="24">24 · hourly</button><button type="button" data-v="48">48 · 30 min</button><button type="button" data-v="96">96 · 15 min</button>
@@ -123,30 +123,30 @@
       <p class="hint" id="Thint"></p>
       <label class="chk" id="weeklyL" title="Adds the position in the week (sine and cosine) as two extra inputs of the AR and of the 14 ELMs; the other models do not use it. Useful for series driven by human activity (electric load, traffic, sales), where Monday differs from Sunday; useless for solar series."><input type="checkbox" id="weekly"> Second cycle of 7 periods <small>(the week)</small> <span class="tip" aria-hidden="true">ⓘ</span></label>
       <label class="chk" id="annualL" title="The AR and the 14 ELMs also get the day of the year (sine and cosine), to learn that January differs from July; the periodic AR (PAR) works on the gap to the average year (mean of each hour of each calendar day over the years learned; called TMY in the paper, Eq. 6). The other models ignore it. Needs one period = one day and at least two years of learning data (five for the PAR, which is set aside otherwise). More than 10,000 values: load them from a settings file (up to 50,000)."><input type="checkbox" id="annual"> Annual cycle <span class="tip" aria-hidden="true">ⓘ</span> <small id="annualWhy"></small></label>
-      <label for="horizon" style="margin-top:12px">Horizon, in lags</label>
+      <label for="horizon" style="margin-top:12px" title="How far ahead each forecast looks, in time steps: 1 = the next value; 6 with hourly data = six hours ahead. Each forecast only uses values already observed at the time it is made.">Horizon, in lags <span class="tip" aria-hidden="true">ⓘ</span></label>
       <select id="horizon"><option value="1" selected>1 lag</option><option value="2">2 lags</option><option value="3">3 lags</option><option value="4">4 lags</option><option value="5">5 lags</option><option value="6">6 lags</option><option value="7">7 lags</option><option value="8">8 lags</option><option value="9">9 lags</option><option value="10">10 lags</option><option value="11">11 lags</option><option value="12">12 lags</option><option value="13">13 lags</option><option value="14">14 lags</option><option value="15">15 lags</option><option value="16">16 lags</option><option value="17">17 lags</option><option value="18">18 lags</option><option value="19">19 lags</option><option value="20">20 lags</option><option value="21">21 lags</option><option value="22">22 lags</option><option value="23">23 lags</option><option value="24">24 lags</option><option value="25">25 lags</option><option value="26">26 lags</option><option value="27">27 lags</option><option value="28">28 lags</option><option value="29">29 lags</option><option value="30">30 lags</option><option value="31">31 lags</option><option value="32">32 lags</option><option value="33">33 lags</option><option value="34">34 lags</option><option value="35">35 lags</option><option value="36">36 lags</option><option value="37">37 lags</option><option value="38">38 lags</option><option value="39">39 lags</option><option value="40">40 lags</option><option value="41">41 lags</option><option value="42">42 lags</option><option value="43">43 lags</option><option value="44">44 lags</option><option value="45">45 lags</option><option value="46">46 lags</option><option value="47">47 lags</option><option value="48">48 lags</option><option value="49">49 lags</option><option value="50">50 lags</option><option value="51">51 lags</option><option value="52">52 lags</option><option value="53">53 lags</option><option value="54">54 lags</option><option value="55">55 lags</option><option value="56">56 lags</option><option value="57">57 lags</option><option value="58">58 lags</option><option value="59">59 lags</option><option value="60">60 lags</option><option value="61">61 lags</option><option value="62">62 lags</option><option value="63">63 lags</option><option value="64">64 lags</option><option value="65">65 lags</option><option value="66">66 lags</option><option value="67">67 lags</option><option value="68">68 lags</option><option value="69">69 lags</option><option value="70">70 lags</option><option value="71">71 lags</option><option value="72">72 lags</option><option value="73">73 lags</option><option value="74">74 lags</option><option value="75">75 lags</option><option value="76">76 lags</option><option value="77">77 lags</option><option value="78">78 lags</option><option value="79">79 lags</option><option value="80">80 lags</option><option value="81">81 lags</option><option value="82">82 lags</option><option value="83">83 lags</option><option value="84">84 lags</option><option value="85">85 lags</option><option value="86">86 lags</option><option value="87">87 lags</option><option value="88">88 lags</option><option value="89">89 lags</option><option value="90">90 lags</option><option value="91">91 lags</option><option value="92">92 lags</option><option value="93">93 lags</option><option value="94">94 lags</option><option value="95">95 lags</option><option value="96">96 lags</option><option value="97">97 lags</option><option value="98">98 lags</option><option value="99">99 lags</option><option value="100">100 lags</option></select>
       <p class="hint">From 1 to 100 steps ahead.</p>
     </div>
     <div class="card top" style="--c:var(--p3)">
       <h3>Search</h3>
       <p class="hint" style="margin:0 0 4px">Ticked: chosen by cross-validation on the learning series. Unticked: the fixed value.</p>
-      <label class="chk"><input type="checkbox" id="optIn"> <span id="optInL">Inputs: 0.5, 1, 1.5, 2 periods</span></label>
-      <label class="chk"><input type="checkbox" id="optNh"> Hidden neurons: 10, 50, 100, 500</label>
-      <label class="chk" title="λ controls shrinkage of the ELM output weights. Generalised cross-validation (Golub, Heath and Wahba 1979) evaluates a formula over an internal grid in each fit. The final λ is shown under Settings kept. Temporal validation evaluates the model settings. With this option off, λ = 10⁻⁶."><input type="checkbox" id="optLam" checked> Ridge λ by GCV <span class="tip" aria-hidden="true">ⓘ</span></label>
-      <label class="chk"><input type="checkbox" id="optSm" checked> Smoothing: Holt-Winters (grid), Theta (least squares), ES window</label>
-      <label class="chk"><input type="checkbox" id="pca"> PCA of the lag inputs <small>(95 % of the variance · <a href="https://www.cyrilvoyant.com/prevision-pv-reduction-dimension/" target="_blank" rel="noopener">why</a>)</small></label>
-      <p class="hint">Each setting is tried with 30 random draws of the hidden layer. Validation keeps time order: the learning series is cut into 5 blocks; fit on block 1, check on 2; fit on 1–2, check on 3; and so on.</p>
+      <label class="chk" title="Number of past values given as inputs to the AR, the ARMA and the 14 ELMs, chosen by cross-validation among these values. The PAR chooses its own order for each phase by BIC."><input type="checkbox" id="optIn"> <span id="optInL">Inputs: 0.5, 1, 1.5, 2 periods</span> <span class="tip" aria-hidden="true">ⓘ</span></label>
+      <label class="chk" title="ELMs only: size of the random hidden layer, chosen by cross-validation among these values."><input type="checkbox" id="optNh"> Hidden neurons: 10, 50, 100, 500 <span class="tip" aria-hidden="true">ⓘ</span></label>
+      <label class="chk" title="ELMs only. λ controls shrinkage of the ELM output weights. Generalised cross-validation (Golub, Heath and Wahba 1979) evaluates a formula over an internal grid in each fit. The final λ is shown under Settings kept. Temporal validation evaluates the model settings. With this option off, λ = 10⁻⁶."><input type="checkbox" id="optLam" checked> Ridge λ by GCV <span class="tip" aria-hidden="true">ⓘ</span></label>
+      <label class="chk" title="Holt-Winters, Theta and exponential smoothing (ES) only: their smoothing settings are chosen by cross-validation (Holt-Winters on a grid, Theta by least squares, ES among windows of 10, 24 and 48 steps)."><input type="checkbox" id="optSm" checked> Smoothing: Holt-Winters (grid), Theta (least squares), ES window <span class="tip" aria-hidden="true">ⓘ</span></label>
+      <label class="chk" title="AR and ELMs: the lag inputs are replaced by their principal components, keeping 95 % of the variance (fitted on the learning rows only)."><input type="checkbox" id="pca"> PCA of the lag inputs <small>(95 % of the variance · <a href="https://www.cyrilvoyant.com/prevision-pv-reduction-dimension/" target="_blank" rel="noopener">why</a>)</small></label>
+      <p class="hint">ELMs: each setting is tried with 30 random draws of the hidden layer. The PAR chooses its order for each phase by BIC, outside this search. Validation keeps time order: the learning series is cut into 5 blocks; fit on block 1, check on 2; fit on 1–2, check on 3; and so on.</p>
       <div class="warn hidden" id="slow">The search can take several minutes. You can stop it at any time.</div>
     </div>
     <div class="card top" style="--c:var(--p4)">
       <h3>Fixed values</h3>
-      <label for="lbFix">Inputs <small id="lbUnit">(periods)</small></label>
+      <label for="lbFix" title="Number of past values given as inputs to the AR, the ARMA and the 14 ELMs when the inputs are not searched. The PAR chooses its own order for each phase by BIC.">Inputs <small id="lbUnit">(periods)</small> <span class="tip" aria-hidden="true">ⓘ</span></label>
       <select id="lbFix"><option value="0">0.5</option><option value="1" selected>1</option><option value="2">1.5</option><option value="3">2</option></select>
-      <label for="nhFix">Hidden neurons</label>
+      <label for="nhFix" title="ELMs only: size of the random hidden layer when it is not searched.">Hidden neurons <span class="tip" aria-hidden="true">ⓘ</span></label>
       <select id="nhFix"><option>10</option><option>50</option><option>100</option><option selected>500</option></select>
-      <label for="lamFix">Ridge λ</label>
+      <label for="lamFix" title="ELMs only: shrinkage of the output weights when λ is not chosen by GCV. ELM variants with their own grid choose it themselves.">Ridge λ <span class="tip" aria-hidden="true">ⓘ</span></label>
       <select id="lamFix"><option value="1e-6" selected>10⁻⁶</option></select>
-      <label for="act">ELM activation</label>
+      <label for="act" title="ELMs only: function applied in the hidden layer.">ELM activation <span class="tip" aria-hidden="true">ⓘ</span></label>
       <select id="act"><option value="sigmoid">sigmoid</option><option value="tanh">tanh</option><option value="relu">ReLU</option><option value="sine">sine</option><option value="gaussian">Gaussian</option></select>
       <p class="hint">A searched setting cannot be fixed: its box is greyed. ELM variants search their own grid, the one of their reference script.</p>
     </div>
@@ -154,13 +154,13 @@
       <h3>Prediction interval</h3>
       <label for="cov">Nominal coverage (%)</label>
       <input type="number" id="cov" min="10" max="99" value="80">
-      <label class="chk"><input type="checkbox" id="asym" checked> Asymmetric intervals (separate lower and upper levels)</label>
+      <label class="chk" title="Ticked: the lower and upper limits are calibrated separately, so the interval can be wider on one side (useful when errors are skewed, as for solar power). Unticked: forecast plus or minus the same margin on both sides."><input type="checkbox" id="asym" checked> Asymmetric intervals (separate lower and upper levels) <span class="tip" aria-hidden="true">ⓘ</span></label>
       <p class="hint" id="coverageHelp" aria-live="polite">Coverage = upper level − lower level. Calculated automatically below.</p>
       <div id="asymBox" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <label>Lower (%)<input type="number" id="qlo" min="0.5" max="49.5" step="0.5" value="10"></label>
-        <label style="margin-top:10px">Upper (%)<input type="number" id="qhi" min="50.5" max="99.5" step="0.5" value="90"></label>
+        <label title="The observation should fall below the lower limit this share of the time. With 10 % and 90 %, 80 % of the observations should lie inside the interval.">Lower (%)<input type="number" id="qlo" min="0.5" max="49.5" step="0.5" value="10"></label>
+        <label style="margin-top:10px" title="The observation should fall below the upper limit this share of the time.">Upper (%)<input type="number" id="qhi" min="50.5" max="99.5" step="0.5" value="90"></label>
       </div>
-      <label for="bandKind">Method</label>
+      <label for="bandKind" title="Conformal-style: the limits come from the ranks of past validation errors, with no assumption on their shape. Gaussian: forecast plus the mean error, plus or minus a multiple of the error standard deviation, which assumes bell-shaped errors.">Method <span class="tip" aria-hidden="true">ⓘ</span></label>
       <select id="bandKind"><option value="conformal">Conformal-style (non-parametric, asymmetric by default)</option><option value="gaussian">Gaussian (mean ± z·sd)</option></select>
       <label class="chk" title="Calibrate each phase separately (same hour for hourly data). Climatology always uses one global interval. A phase with fewer than 20 errors, or too few for the required conformal ranks and 99 centiles, uses the global errors. The results report these fallbacks. Needs a period."><input type="checkbox" id="bandPhase" checked> Per phase of the period <span class="tip" aria-hidden="true">ⓘ</span></label>
       <p class="hint">The default interval is <b>asymmetric and non-parametric</b>: the two signed-error tails are calibrated separately. Untick asymmetric intervals for forecast ± a margin calibrated on absolute errors, as in the tutorial. <a href="https://www.cyrilvoyant.com/tools/probabilistic-solar-forecasting/">How conformal prediction works</a>. Gaussian intervals are a separate option.</p>
@@ -175,11 +175,11 @@
 </section>
 
 <div class="runbar">
-  <button class="btn primary" id="go" type="button">Run</button>
-  <button class="btn" id="stop" type="button" disabled>Stop</button>
+  <button class="btn primary" id="go" type="button" title="Fit the four models on the learning series, forecast the second series step by step and compute the scores. Everything runs in your browser; nothing is sent anywhere.">Run</button>
+  <button class="btn" id="stop" type="button" title="Stop the computation now. Nothing is kept; change the settings (for instance fewer searched settings) and run again." disabled>Stop</button>
   <div class="bar"><i id="barfill"></i></div>
-  <span id="status">Ready.</span>
-  <span class="jobs"><button class="btn" id="jobLoad" type="button" title="Open a .json settings file (see API.md), with or without data; you can also drop it on the page">Open settings</button><button class="btn" id="jobSave" type="button" title="Save the settings as a .json file (with the series if the box is ticked)">Save settings</button><button class="btn" id="jobShare" type="button" title="Copy a link that holds the settings (and the series if the box is ticked). The link part after # is never sent to any server.">Share settings</button><label class="chk" title="Put the learning series and the series to forecast in the saved file or the shared link. Unticked: settings only."><input type="checkbox" id="jobData"> Include my series <small>(otherwise: settings only)</small></label></span>
+  <span id="status" title="Progress: share of the work done, then the model and horizon being computed. The ELM searches take most of the time.">Ready.</span>
+  <span class="jobs"><button class="btn" id="jobLoad" type="button" title="Open a .json settings file (see API.md), with or without data; you can also drop it on the page">Open file</button><button class="btn" id="jobSave" type="button" title="Downloads a .json file to keep on your computer or send by e-mail: all the settings and, if the box is ticked, the two series as lists of numbers (learn, forecast). Reopen it later with Open file. Format: API.md.">Save file</button><button class="btn" id="jobShare" type="button" title="Copies a web link instead of a file: the same settings (and the series if the box is ticked) are compressed into the address, after #. Anyone who opens the link gets the page filled in, ready to Run. The part after # is never sent to any server. Long series make long links.">Share link</button><label class="chk" title="Ticked: the saved file or the shared link also holds your two series (learning and to forecast), as plain lists of numbers. Untick to share only the settings, without your data (for an exercise, each student then pastes their own series)."><input type="checkbox" id="jobData" checked> Include my series <small>(untick: settings only)</small> <span class="tip" aria-hidden="true">ⓘ</span></label><small class="jobhelp">Save: one .json file (settings + series) · Share: a link to paste in an e-mail, it fills the page · <a href="example-job.json" target="_blank" rel="noopener">example file</a></small></span>
   <input type="file" id="jobFile" accept=".json,application/json" hidden>
 </div>
 <div class="err" id="err" role="alert"></div>
@@ -213,12 +213,12 @@
   <div class="panel">
     <h3>Probabilistic diagnostics</h3>
     <div class="dxsel">
-      <label><input type="checkbox" class="dx" value="fan" checked> Fan charts</label>
-      <label><input type="checkbox" class="dx" value="rel" checked> Reliability diagram</label>
-      <label><input type="checkbox" class="dx" value="pit" checked> PIT histogram</label>
-      <label><input type="checkbox" class="dx" value="qq"> Normal QQ plot</label>
-      <label><input type="checkbox" class="dx" value="sc"> Forecast against observed</label>
-      <label><input type="checkbox" class="dx" value="hist"> Error histogram</label>
+      <label title="The forecast with its uncertainty: the darker the band, the more likely the value. Most observations (dots) should fall inside the bands."><input type="checkbox" class="dx" value="fan" checked> Fan charts</label>
+      <label title="Checks the uncertainty: if the forecast says 30 %, about 30 % of the observations should fall below that level. Points on the diagonal = honest uncertainty."><input type="checkbox" class="dx" value="rel" checked> Reliability diagram</label>
+      <label title="Where each observation falls in its forecast distribution. Flat = well calibrated; U shape = intervals too narrow; hump = too wide."><input type="checkbox" class="dx" value="pit" checked> PIT histogram</label>
+      <label title="Compares the errors with a bell curve. Points on the line = normal errors; curved ends = more large errors than a bell curve predicts."><input type="checkbox" class="dx" value="qq"> Normal QQ plot</label>
+      <label title="Each point is one forecast against what happened. A perfect forecast puts every point on the diagonal."><input type="checkbox" class="dx" value="sc"> Forecast against observed</label>
+      <label title="How often each size of error occurs. Centred on 0 = no bias; narrow = precise."><input type="checkbox" class="dx" value="hist"> Error histogram</label>
     </div>
   </div>
   <div class="plots" id="dx" style="margin-top:16px"></div>
@@ -292,7 +292,7 @@
   </div></details>
 
   <details class="sec" id="code"><summary>Send a job to this page</summary><div>
-    <p>A notebook or a script can prepare a JSON job (series and settings) for this page, in two ways: a link ending in <code>#job=…</code> (button <i>Share settings</i>), or a <code>.json</code> file opened with <i>Open settings</i> or dropped on the page. The page fills in, and computes in the reader's browser when they click Run. A job may hold up to 50,000 values in each series. The format and examples are in <a href="API.md">API.md</a>. To automate forecasts (scheduled runs, saved models, several horizons, forecasts of the future), use FrugalCast Local, the Windows kit (in preparation).</p>
+    <p>A notebook or a script can prepare a JSON job (series and settings) for this page, in two ways: a link ending in <code>#job=…</code> (button <i>Share link</i>), or a <code>.json</code> file opened with <i>Open file</i> or dropped on the page. The page fills in, and computes in the reader's browser when they click Run. A job may hold up to 50,000 values in each series. The format and examples are in <a href="API.md">API.md</a>. To automate forecasts (scheduled runs, saved models, several horizons, forecasts of the future), use FrugalCast Local, the Windows kit (in preparation).</p>
     <pre class="code">{ "learn": [/* values */], "forecast": [/* values */], "period": 24, "horizon": 1,
   "models": ["cliper", "artu", "arma", "elm"], "interval": { "kind": "conformal", "coverage": 80 } }</pre>
   </div></details>

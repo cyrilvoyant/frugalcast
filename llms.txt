@@ -28,7 +28,7 @@ You cannot run the benchmark yourself: the page computes only in the user's brow
 3. URL-encode the JSON and give the link https://frugalcast.cyrilvoyant.com/#job=<encoded JSON>. The user opens it: the series and the settings are already on the page; the user checks them and clicks Run.
 4. To get the results back, ask the user to click **Download JSON** (below the results) and send you the file. It holds, for the chosen horizon, the observed values, each model's forecast with its lower and upper limits, all the scores (nRMSE, NICE, PICP, CRPS…), the settings chosen by cross-validation and the citation; format in API.md § 3. **Download CSV** gives the same series as a table. For a quick answer, the user can also copy the score table.
 
-The learning series needs a few hundred values at least, a few thousand is better, so the link is long. If you cannot write or the chat would cut such a link, give the same JSON as a .json file: the user drops it on the page (or uses "Open settings"). A script can also build a shorter compressed link (Python example in API.md). Last resort: give a link with the settings only, and the user pastes the two series into the page.
+The learning series needs a few hundred values at least, a few thousand is better, so the link is long. If you cannot write or the chat would cut such a link, give the same JSON as a .json file: the user drops it on the page (or uses "Open file"). A script can also build a shorter compressed link (Python example in API.md). Last resort: give a link with the settings only, and the user pastes the two series into the page.
 
 Settings-only link (no data; the user pastes the series or clicks "Try it with the example"): https://frugalcast.cyrilvoyant.com/#job=%7B%22period%22%3A24%2C%22horizon%22%3A6%2C%22models%22%3A%5B%22cliper%22%2C%22artu%22%2C%22arma%22%2C%22elm%22%5D%2C%22prep%22%3A%22profile%22%2C%22solar%22%3A%7B%22scoreOn%22%3A%22day%22%2C%22cvOn%22%3A%22all%22%7D%7D
 
@@ -60,7 +60,7 @@ The page is meant to be used by a person. To automate forecasts (no fixed size l
 
 
 - Link: https://frugalcast.cyrilvoyant.com/#job=<URL-encoded JSON> (or `z` + base64url of raw-DEFLATE JSON). The part after # is never sent to any server.
-- Local file: "Open settings" or drop a .json file on the page; "Save settings" and "Share settings" write the settings, with the series only when "Include my series" is ticked. learn and forecast are optional (both or neither).
+- Local file: "Open file" or drop a .json file on the page; "Save file" and "Share link" write the settings and the series; untick "Include my series" for settings only. learn and forecast are optional (both or neither).
 - Job: { learn: [...], forecast: [...], period: 24 | "none", horizon: 1, models: [4 ids], search, fixed, pca, interval: { kind, coverage }, prep, norm, clip }. A job is never computed on arrival: the page is filled in and the computation starts when the reader clicks Run. Up to 50,000 values in each series (10,000 when pasted by hand). Full format: API.md.
 
 ## Licence

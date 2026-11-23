@@ -183,6 +183,7 @@ footer.site{margin:44px 0 0;border-top:1px solid var(--line);padding:16px 0 40px
 /* jobs, drop zone, citation dialog */
 .runbar .jobs{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .runbar .jobs .chk{margin:0;font-size:.85rem}
+.runbar .jobs .jobhelp{flex-basis:100%;color:var(--muted,#667);font-size:.78rem}
 body.dropping::after{content:"Drop the .json job here";position:fixed;inset:12px;border:3px dashed var(--p2);border-radius:16px;background:rgba(237,244,250,.88);
   display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:600;color:var(--p2);z-index:50;pointer-events:none}
 #citeDlg{max-width:620px;border:1px solid var(--line);border-radius:14px;padding:26px 30px;box-shadow:0 20px 60px rgba(23,37,54,.25);color:var(--ink)}

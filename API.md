@@ -59,9 +59,11 @@ Every field is optional. A **settings file** has no `learn` and no `forecast`: i
 
 ## 2. Two ways to send it
 
+A complete example, with settings and two real series (EDF Corsica, 4 weeks to learn, 2 days to forecast): [example-job.json](https://frugalcast.cyrilvoyant.com/example-job.json). Open it with **Open file**, then click **Run**.
+
 ### a. A link: `#job=…`
 
-The button **Share settings** builds it from the page: settings only, or settings and series when *Include my series* is ticked. You can also write it yourself:
+The button **Share link** builds it from the page: settings and series by default, or settings only when *Include my series* is unticked. You can also write it yourself:
 
 - `#job=` followed by the JSON, URL-encoded (`encodeURIComponent`): fine for short series;
 - or `#job=z` followed by the JSON compressed with raw DEFLATE and encoded in base64url. This is what the button makes; it is about 3 times shorter.
@@ -84,7 +86,7 @@ Browsers accept links of several megabytes. For long series, a file is simpler.
 
 ### b. A local file
 
-Button **Open settings**, or drop the `.json` file on the page. **Save settings** writes the current settings as a file (with the series when *Include my series* is ticked).
+Button **Open file**, or drop the `.json` file on the page. **Save file** writes the current settings as a file (with the series unless *Include my series* is unticked).
 
 ### Automation
 

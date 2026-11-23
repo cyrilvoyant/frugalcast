@@ -151,7 +151,7 @@
       ? 'Non-periodic: no clock inputs; cyclic models are set aside. Inputs are 1, 2, 4 or 8 lags.'
       : `Clock inputs: sin/cos of the phase over ${r.T} steps. Inputs of 0.5 to 2 periods = ${lb.join(', ')} lags.`;
     $('lbUnit').textContent = none ? '(lags)' : '(periods)';
-    if (lb) [...$('lbFix').options].forEach((o, i) => { o.textContent = none ? `${lb[i]} lag${lb[i] > 1 ? 's' : ''}` : `${['0.5', '1', '1.5', '2'][i]} period${i ? 's' : ''} = ${lb[i]} lags`; });
+    if (lb) [...$('lbFix').options].forEach((o, i) => { o.textContent = none ? `${lb[i]} lag${lb[i] > 1 ? 's' : ''}` : `${['0.5', '1', '1.5', '2'][i]} period${i >= 2 ? 's' : ''} = ${lb[i]} lags`; });
     $('optInL').textContent = none ? 'Inputs: 1, 2, 4, 8 lags' : 'Inputs: 0.5, 1, 1.5, 2 periods';
     syncAnnual();
   }
