@@ -39,7 +39,8 @@ Settings-only link (no data; the user pastes the series or clicks "Try it with t
 - Issue time t, inputs = last values (standardized with the learning series; optional PCA keeping 95 % of variance) + sin/cos of the target phase when the series has a period; target = value h steps later (h = 1 to 100).
 - Settings chosen by expanding-window temporal cross-validation on the learning series (5 blocks, 4 folds), then refitted on the whole learning series. A forecast uses observations available at its issue time.
 - For solar data, preserve every time step. Positive observed targets can be selected for scoring. With the solar option, forecasts are written as 0 where the observation is 0 (not causal, retrospective view); in real use the night filtering is the user's job. Scores on positive observed targets do not depend on this rule.
-- Intervals from the out-of-fold validation residuals: empirical quantiles of the out-of-fold residuals, global or per phase (no formal conformal coverage guarantee after time-based model selection), or Gaussian (mean ± z·sd). The complex-valued AR scales them by its forecast volatility, as in its paper.
+- Every model has non-parametric conformal-style intervals: asymmetric by default, using separate conformal ranks of signed out-of-sample validation errors. Set interval.mode to "symmetric" for forecast ± a conformal-rank quantile of absolute errors; saved jobs record the mode explicitly. Gaussian intervals are a separate parametric option. Calibration pools temporal cross-validation errors also used for settings selection: not the CV+ algorithm, not a separate split-conformal calibration block, and no formal coverage guarantee for dependent time series. Small phase groups fall back to global errors; unachievable global ranks yield explicit unbounded outputs. Bounds, centiles, PIT and approximate CRPS share the same distribution.
+- Conformal prediction tutorial by Cyril Voyant: https://www.cyrilvoyant.com/tools/probabilistic-solar-forecasting/ (French: https://www.cyrilvoyant.com/fr/outils/prevision-probabiliste/). The tutorial uses a separate calibration block; the benchmark currently uses temporal cross-validation residuals.
 - Optional preparation: centre, or centre and scale, the series, or remove its mean profile (mean of the learning values at each step of the period; needs a period). Outputs are mapped back to the original units. Persistence and climatology, the references, always use the series as it is.
 
 ## Models (ids)
@@ -88,3 +89,9 @@ A learning and comparison tool, not investment or operational advice. Levels of 
 - No gap: one value per time step, night included, same step everywhere.
 - No missing value: no NaN, NA or empty line.
 - The learning series starts exactly at the beginning of a period (for hourly data with a daily cycle, the first hour of a day), so the phase is right for the cyclic models, time inputs and per-phase intervals. The forecast series follows the learning series directly.
+
+Unbounded results: JSON exports use the strings "Infinity" and "-Infinity", with explanatory score notes and interval metadata; CSV preserves Infinity/-Infinity. Do not interpret these values as finite margins or missing data.
+
+Models fitted within validation folds use less data than the final model. This can make intervals conservative, particularly for models that improve with more training data; actual test coverage can also fall below the target. Do not tune the intervals on test observations.
+
+In the long test examples, coverage is often close to the target, but it can drift when a series changes regime. Validation models use less training data than the final fit and can produce conservative intervals. Neither a long test nor the conformal-style construction guarantees the nominal coverage for dependent series.

@@ -48,8 +48,9 @@ Every field is optional. A **settings file** has no `learn` and no `forecast`: i
 | `fixed.ridge` | 1e-6 | Ridge λ when it is not chosen by GCV (only value). |
 | `fixed.activation` | sigmoid, tanh, relu, sine, gaussian | ELM activation. |
 | `pca` | true / false | PCA of the inputs, keeping 95 % of the variance. |
-| `interval` | `{kind, coverage}` or `{kind, lower, upper}` | `kind`: conformal or gaussian. `coverage` in % (10–99), or `lower` and `upper` levels in %. |
-| `interval.perPhase` | true (default) / false | Empirical quantiles of the out-of-fold errors of the same phase of the period. Width can vary with phase. Needs a period. No formal coverage guarantee after time-based model selection. |
+| `interval` | `{kind, coverage}` or `{kind, lower, upper}` | `kind`: conformal (default, non-parametric signed-error ranks, asymmetric) or gaussian (separate distributional assumption). [Conformal prediction explained](https://www.cyrilvoyant.com/tools/probabilistic-solar-forecasting/). `coverage` in % (10–99), or explicit `lower` and `upper` levels in % for asymmetric signed-error intervals. `coverage` uses balanced tail levels with the chosen mode (asymmetric by default). |
+| `interval.mode` | asymmetric (default), symmetric | Selects signed-error or absolute-error calibration. Saved and shared jobs record it explicitly. `mode: "symmetric"` uses `coverage`; explicit lower/upper levels require asymmetric mode. |
+| `interval.perPhase` | true (default) / false | Conformal ranks of errors at the same phase of the period. Width can vary with phase. Needs a period. Fewer than 20 errors or insufficient ranks for the bounds/99 centiles trigger a reported fallback to global errors. |
 | `prep` | none, center, standard, profile | Centre, or centre and scale, the series, or remove its mean profile (mean of the learning values at each step of the period; needs `period` ≥ 2). Outputs come back in the original units. Persistence and climatology always use the series as it is. |
 | `norm` | mean, sd, none | Divisor of the normalized errors (nRMSE, nMAE…). Normalized errors are fractions: 0.22, not 22 %. |
 | `clip` | true (default) / false | Set forecasts and limits below 0 to 0, when the learning series has no negative value. For GHI, GTI or PV, keep every hour (a regular grid is needed) and see `solar`. |
@@ -139,3 +140,18 @@ Cite the papers of the models you use as well. After a job opened from a file or
 - Texts and figures: CC BY-NC 4.0.
 - Commercial use: ask the author.
 - See `LICENSE.md`.
+
+
+## Interval calibration and unbounded outputs
+
+All models keep the same temporal cross-validation and final fit on the full learning series. Calibration pools out-of-sample errors from the validation folds, not in-sample errors of the final fit. These errors also select settings: this is conformal-style calibration, not the CV+ algorithm or a separate split-conformal calibration block. No formal coverage guarantee is claimed for dependent time series.
+
+- Symmetric (`interval.mode: "symmetric"`, with `interval.coverage`): sort absolute errors and take rank `ceil((n+1)*coverage/100)`, then forecast ± that margin.
+- Asymmetric (default; balanced levels from `interval.coverage`, or explicit `interval.lower` and `interval.upper`): use the signed errors at ranks `floor((n+1)*lower/100)` and `ceil((n+1)*upper/100)`. The lower and upper fields explicitly select this method, even for balanced tails.
+- Gaussian: a separate parametric method, residual mean ± normal quantile × residual standard deviation.
+- A conformal rank outside 1…n is unbounded, not capped at the largest observed error. Small phase groups fall back to global errors; if global ranks also fail, the result carries a note. The 99 centiles, PIT, fan charts and approximate CRPS use the same quantile function. A zero forecast scale gives a point mass, including when an unscaled margin is infinite.
+- Model results include `interval` metadata: method (`mode`), calibration error count, source and fallback phases. JSON exports encode unbounded numeric values as strings `"Infinity"` or `"-Infinity"`; unavailable values remain `null`. CSV uses `Infinity` / `-Infinity`. The screen shows ∞ and notes; an unbounded fan is truncated to the plot frame and labelled.
+
+Background: [Cyril Voyant’s conformal prediction tutorial](https://www.cyrilvoyant.com/tools/probabilistic-solar-forecasting/), which uses a separate chronological calibration block. The score and symmetric construction agree; the calibration protocol differs as explained above.
+
+Cross-validation models use less training data than the final fit, so their errors can yield conservative intervals, especially for models that improve with more data. This is a possible explanation, not a guarantee: measured coverage can also fall below the target. Compare coverage and width on untouched test data.

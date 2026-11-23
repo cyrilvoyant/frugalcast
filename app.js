@@ -110,7 +110,21 @@
   ['optIn', 'optNh', 'optLam'].forEach(id => $(id).addEventListener('change', syncSearch));
   $('asym').addEventListener('change', () => { $('asymBox').classList.toggle('hidden', !$('asym').checked); syncLevels(); });
   $('cov').addEventListener('input', syncLevels);
-  function syncLevels() { if ($('asym').checked) return; const c = +$('cov').value; $('qlo').value = (100 - c) / 2; $('qhi').value = 100 - (100 - c) / 2; }
+  ['qlo', 'qhi'].forEach(id => $(id).addEventListener('input', syncLevels));
+  function syncLevels() {
+    const asymmetric = $('asym').checked;
+    $('cov').readOnly = asymmetric;
+    $('cov').title = asymmetric ? 'Calculated from Upper minus Lower; edit those two levels below.' : '';
+    $('coverageHelp').classList.toggle('hidden', !asymmetric);
+    if (asymmetric) {
+      const lower = $('qlo').value, upper = $('qhi').value;
+      $('cov').value = lower !== '' && upper !== '' && Number.isFinite(+lower) && Number.isFinite(+upper)
+        ? Math.round((+upper - +lower) * 1e10) / 1e10 : '';
+    } else {
+      const c = +$('cov').value;
+      $('qlo').value = (100 - c) / 2; $('qhi').value = 100 - (100 - c) / 2;
+    }
+  }
 
   // period: a whole number of steps, or "none"
   function readT() {
@@ -182,7 +196,7 @@
         opt: { inputs: $('optIn').checked, neurons: $('optNh').checked, ridge: $('optLam').checked, smooth: $('optSm').checked },
         nhOpts: [10, 50, 100, 500], ncand: 30, ncandFixed: 1,
         lbFixed: lbOpts[+$('lbFix').value], nhFixed: +$('nhFix').value, lamFixed: +$('lamFix').value,
-        act: $('act').value, qlo, qhi, bandKind: $('bandKind').value, bandPhase: $('bandPhase').checked, norm: radio('norm'), prep: radio('prep'), clip: $('clip').checked, solar: solarCfg(), seed: 42, folds: 5 },
+        act: $('act').value, qlo, qhi, bandKind: $('bandKind').value, bandAsym: $('asym').checked, bandPhase: $('bandPhase').checked, norm: radio('norm'), prep: radio('prep'), clip: $('clip').checked, solar: solarCfg(), seed: 42, folds: 5 },
     };
   }
 
@@ -206,7 +220,7 @@
   function reset() { $('go').disabled = false; $('stop').disabled = true; worker = null; }
 
   // ---------- results ----------
-  const fmt = (v, k) => !Number.isFinite(v) ? '–' : (k === 'picp' || k === 'ace') ? v.toFixed(3) : Math.abs(v) >= 1000 ? Math.round(v).toLocaleString('en') : Math.abs(v) >= 100 ? v.toFixed(1) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toFixed(3);
+  const fmt = (v, k) => v === Infinity ? '∞' : v === -Infinity ? '−∞' : !Number.isFinite(v) ? '–' : (k === 'picp' || k === 'ace') ? v.toFixed(3) : Math.abs(v) >= 1000 ? Math.round(v).toLocaleString('en') : Math.abs(v) >= 100 ? v.toFixed(1) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toFixed(3);
   const H = () => result.horizons[0];
   const col = id => COLORS[job.models.indexOf(id)];
   const live = h => job.models.filter(id => h.models[id]);
@@ -288,7 +302,7 @@
         return `<td${k !== null && s[c[0]] === b[c[0]] ? ' class="best"' : ''}>${fmt(s[c[0]], c[0])}</td>`;
       }).join('') + '</tr>').join('') + '</tbody>';
     const h = H();
-    $('chosen').innerHTML = `${job.cfg.norm === 'none' ? 'Errors shown in the units of the series.' : 'Normalized errors are fractions. See the notes for any change to the requested scale.'} ${job.cfg.prep === 'center' ? 'Series centred before modelling. ' : job.cfg.prep === 'standard' ? 'Series centred and scaled before modelling. ' : job.cfg.prep === 'profile' ? 'Mean profile removed before modelling and added back to forecasts and intervals. ' : ''}${Math.round(100 * target)} % ${job.cfg.bandKind === 'gaussian' ? 'Gaussian' : 'empirical'} intervals. Best value in bold. Hover a column name for its definition.<br><b>Settings kept</b> — ` +
+    $('chosen').innerHTML = `${job.cfg.norm === 'none' ? 'Errors shown in the units of the series.' : 'Normalized errors are fractions. See the notes for any change to the requested scale.'} ${job.cfg.prep === 'center' ? 'Series centred before modelling. ' : job.cfg.prep === 'standard' ? 'Series centred and scaled before modelling. ' : job.cfg.prep === 'profile' ? 'Mean profile removed before modelling and added back to forecasts and intervals. ' : ''}${Math.round(100 * target)} % ${job.cfg.bandKind === 'gaussian' ? 'Gaussian' : job.cfg.bandAsym ? 'asymmetric conformal-style' : 'symmetric conformal-style'} intervals. Best value in bold. Hover a column name for its definition.<br><b>Settings kept</b> — ` +
       live(h).map(id => { const c = h.models[id].chosen; const p = Object.entries(c).filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => `${k} ${typeof v === 'number' ? +v.toPrecision(4) : v}`).join(', '); return `${E.MODELS[id].name}${p ? ': ' + p : ': no setting'}`; }).join(' · ');
   }
 
@@ -314,7 +328,7 @@
   function area(g, a, b, X, Yup, Ylo, fill) { g.fillStyle = fill; g.beginPath(); for (let i = a; i < b; i++) g.lineTo(X(i), Yup(i)); for (let i = b - 1; i >= a; i--) g.lineTo(X(i), Ylo(i)); g.closePath(); g.fill(); }
   const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
   const pad = (lo, hi) => { const p = (hi - lo) * 0.06 || 1; return [lo - p, hi + p]; };
-  const cen = (m, i, k) => { const v = m.pred[i] + (m.cph ? m.cent[m.cph[i]] : m.cent)[k] * (m.sc ? m.sc[i] : 1); return m.low0 && v < 0 ? 0 : v; };
+  const cen = (m, i, k) => { const sc = m.sc ? m.sc[i] : 1, v = m.pred[i] + (sc === 0 ? 0 : (m.cph ? m.cent[m.cph[i]] : m.cent)[k] * sc); return m.low0 && v < 0 ? 0 : v; };
   function title(g, x, y, txt, c) { g.font = '600 13px system-ui,Segoe UI,sans-serif'; g.fillStyle = c; g.fillText(txt, x, y); g.font = '12px system-ui,Segoe UI,sans-serif'; }
 
   function drawSeries() {
@@ -378,13 +392,17 @@
       const a = +$('win').value, b = Math.min(h.y.length, a + winLen()), x0 = 64, pw = W - 78, X = i => x0 + pw * (i - a) / Math.max(1, b - a - 1);
       ms.forEach((id, k) => {
         const m = h.models[id], c = col(id), y0 = 6 + k * panel, ph = panel - 22;
-        let lo = Infinity, hi = -Infinity; for (let i = a; i < b; i++) { lo = Math.min(lo, h.y[i], cen(m, i, 9)); hi = Math.max(hi, h.y[i], cen(m, i, 89)); }
-        [lo, hi] = pad(lo, hi); const Y = v => y0 + ph - ph * (v - lo) / (hi - lo);
+        let lo = Infinity, hi = -Infinity, unbounded = false;
+        for (let i = a; i < b; i++) for (const v of [h.y[i], m.pred[i], cen(m, i, 9), cen(m, i, 89)]) {
+          if (Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } else unbounded = true;
+        }
+        [lo, hi] = pad(lo, hi); const Y = v => y0 + ph - ph * (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo);
         yAxis(g, x0, y0, pw, ph, lo, hi, 3);
         for (const [p, q, al] of [[9, 89, .12], [19, 79, .14], [29, 69, .17], [39, 59, .22]]) area(g, a, b, X, i => Y(cen(m, i, q)), i => Y(cen(m, i, p)), rgba(c, al));
         path(g, a, b, X, i => Y(cen(m, i, 49)), c, 1.8, [5, 4]);
         dots(g, a, b, X, i => Y(h.y[i]), INK);
         title(g, x0 + 8, y0 + 15, E.MODELS[id].name, c);
+        if (unbounded) title(g, x0 + 8, y0 + 32, 'Unbounded interval: clipped to the plot frame', MUTED);
       });
     },
     rel(cv, h, ms) { square(cv, 'forecast centile', 'observed share below', [0, 1], [0, 1], ms.map(id => [h.models[id].qq.calib, id]), true); },
@@ -441,7 +459,7 @@
   }
   function metricsText() {
     const C = cols();
-    return ['model\t' + C.map(c => c[1].replace(/<[^>]+>/g, '')).join('\t')].concat(rows().map(([n, s, k]) => n + '\t' + C.map(c => (k === null && c[3] === 'prob') || !Number.isFinite(s[c[0]]) ? '' : +s[c[0]].toPrecision(6)).join('\t'))).join('\n');
+    return ['model\t' + C.map(c => c[1].replace(/<[^>]+>/g, '')).join('\t')].concat(rows().map(([n, s, k]) => n + '\t' + C.map(c => (k === null && c[3] === 'prob') ? '' : s[c[0]] === Infinity || s[c[0]] === -Infinity ? String(s[c[0]]) : !Number.isFinite(s[c[0]]) ? '' : +s[c[0]].toPrecision(6)).join('\t'))).join('\n');
   }
   async function copy(text, what) {
     try { await navigator.clipboard.writeText(text); $('copied').textContent = `✓ ${what} copied: tab-separated, it pastes into a spreadsheet.`; }
@@ -538,9 +556,18 @@
       if (j.pca !== undefined) $('pca').checked = !!j.pca;
       const iv = j.interval || {};
       if (iv.kind) { if (!['conformal', 'gaussian'].includes(iv.kind)) throw new Error('"interval.kind" must be conformal or gaussian'); $('bandKind').value = iv.kind; }
-      if (iv.lower !== undefined || iv.upper !== undefined) { $('asym').checked = true; $('qlo').value = iv.lower ?? 10; $('qhi').value = iv.upper ?? 90; }
-      else if (iv.coverage !== undefined) { $('asym').checked = false; $('cov').value = iv.coverage; syncLevels(); }
+      if (iv.mode !== undefined && !['symmetric', 'asymmetric'].includes(iv.mode)) throw new Error('"interval.mode" must be symmetric or asymmetric');
+      if (iv.lower !== undefined || iv.upper !== undefined) {
+        if (iv.mode === 'symmetric') throw new Error('Use interval.coverage for symmetric intervals, or choose interval.mode asymmetric for separate levels.');
+        $('asym').checked = true; $('qlo').value = iv.lower ?? 10; $('qhi').value = iv.upper ?? 90;
+      } else if (iv.coverage !== undefined) {
+        const c = +iv.coverage;
+        if (!(c >= 10 && c <= 99)) throw new Error('"interval.coverage" must lie between 10 and 99 %.');
+        $('cov').value = c; $('qlo').value = (100 - c) / 2; $('qhi').value = (100 + c) / 2;
+        $('asym').checked = iv.mode !== 'symmetric';
+      } else if (iv.mode !== undefined) $('asym').checked = iv.mode === 'asymmetric';
       $('asymBox').classList.toggle('hidden', !$('asym').checked);
+      syncLevels();
       if (iv.perPhase !== undefined) $('bandPhase').checked = !!iv.perPhase;
       if (j.prep) setRadio('prep', j.prep);
       if (j.prep === 'profile' && !(readT().T >= 2)) { setRadio('prep', 'none'); throw new Error('"prep": "profile" (remove the mean profile) needs a period of 2 steps or more'); }
@@ -557,7 +584,7 @@
         search: { inputs: $('optIn').checked, neurons: $('optNh').checked, ridge: $('optLam').checked, smooth: $('optSm').checked },
         fixed: { inputs: lb ? lb[+$('lbFix').value] : undefined, neurons: +$('nhFix').value, ridge: +$('lamFix').value, activation: $('act').value },
         pca: $('pca').checked,
-        interval: Object.assign($('asym').checked ? { kind: $('bandKind').value, lower: +$('qlo').value, upper: +$('qhi').value } : { kind: $('bandKind').value, coverage: +$('cov').value }, { perPhase: $('bandPhase').checked }),
+        interval: Object.assign($('asym').checked ? { kind: $('bandKind').value, mode: 'asymmetric', lower: +$('qlo').value, upper: +$('qhi').value } : { kind: $('bandKind').value, mode: 'symmetric', coverage: +$('cov').value }, { perPhase: $('bandPhase').checked }),
         prep: radio('prep'), norm: radio('norm'), clip: $('clip').checked, solar: solarCfg() };
     }
     function results() {
@@ -566,7 +593,7 @@
         settings: j, horizon: h.h, step: h.t.map(t => t + 1), observed: h.y,
         models: Object.fromEntries(live(h).map(id => {
           const m = h.models[id];
-          return [id, { name: E.MODELS[id].name, forecast: m.pred, lower: m.lo, upper: m.hi, score: m.score, scoreAll: m.scoreAll, chosen: m.chosen, lambda: m.lambda ?? m.chosen?.['ridge λ (GCV)'] ?? m.chosen?.ridge, validationRmse: m.cvRmse, validationScale: m.cvDen, validationFolds: m.cvFolds, tried: m.tried }];
+          return [id, { name: E.MODELS[id].name, forecast: m.pred, lower: m.lo, upper: m.hi, interval: m.interval, score: m.score, scoreAll: m.scoreAll, chosen: m.chosen, lambda: m.lambda ?? m.chosen?.['ridge λ (GCV)'] ?? m.chosen?.ridge, validationRmse: m.cvRmse, validationScale: m.cvDen, validationFolds: m.cvFolds, tried: m.tried }];
         })),
         solar: result.solar || null, cvValidation: h.cvValidation, persistence: h.persistence,
         skipped: result.skipped };
@@ -623,7 +650,7 @@
       const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(j, null, 1)], { type: 'application/json' })); a.download = j.learn ? 'frugalcast-settings-and-data.json' : 'frugalcast-settings.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
     $('resJson').addEventListener('click', () => {
-      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(results())], { type: 'application/json' })); a.download = `frugalcast_results_h${H().h}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(results(), (_, v) => v === Infinity ? 'Infinity' : v === -Infinity ? '-Infinity' : v)], { type: 'application/json' })); a.download = `frugalcast_results_h${H().h}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
     return {
       done() { if (!via) return; citeBox(); via = null; },
@@ -635,5 +662,5 @@
   self.FrugalCast = { pack: API.pack, unpack: API.unpack };
 
   let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => result && (drawSeries(), drawDx()), 150); });
-  syncPeriod(); syncSearch();
+  syncPeriod(); syncSearch(); syncLevels();
 })();

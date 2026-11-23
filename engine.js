@@ -1068,58 +1068,71 @@
     return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
   }
   E.probit = probit;
-  /* conformal: empirical quantiles of the out-of-fold residuals r = y - y_hat; gaussian: mean(r) + z sd(r).
-     ph = {T, rph, tph}: per phase of the period (Mondrian conformal, Vovk, Gammerman and Shafer 2005, Algorithmic Learning in a Random World,
-     Ch. 4): the quantiles of the residuals whose target has the same phase as the target forecast (rph: phase of each residual, tph: of each
-     forecast). A phase with fewer than 20 residuals uses all of them (tool rule). Every quantile goes through clip: with values >= 0 the
-     forecast distribution is censored at 0, so its quantiles are max(0, q) (lower limits, fan charts, CRPS, PIT). */
-  function band(pred, resid, qlo, qhi, clip, kind, scale, ph) {
+  /* Conformal-style calibration on temporal out-of-fold errors, NOT CV+ or split conformal.
+     Symmetric: score |r|, rank ceil((n+1) coverage), centred on the point forecast.
+     Asymmetric: signed errors, floor((n+1)p) below the median and ceil above.
+     The complete quantile function also defines centiles, PIT and approximate CRPS.
+     Rank outside 1..n means an unbounded tail; never silently cap that rank at n.
+     Phases with <20 errors or insufficient ranks for the requested limits/99 centiles
+     fall back to the global calibration group. No exchangeability guarantee is asserted. */
+  function band(pred, resid, qlo, qhi, clip, kind, scale, ph, asymmetric) {
+    if (!resid.length || !resid.every(Number.isFinite)) throw new Error('Intervals need finite out-of-sample calibration errors.');
+    const up = x => Math.ceil(x - 4 * Number.EPSILON * Math.max(1, Math.abs(x)));
+    const down = x => Math.floor(x + 4 * Number.EPSILON * Math.max(1, Math.abs(x)));
+    const mode = kind === 'gaussian' ? 'gaussian' : asymmetric ? 'asymmetric' : 'symmetric';
+    if (mode === 'symmetric' && Math.abs(qlo + qhi - 1) > 1e-12) throw new Error('Symmetric intervals need balanced lower and upper levels; choose asymmetric intervals for separate tails.');
     const mk = rs => {
-      const r = Float64Array.from(rs).sort(), gm = mean(r), gs = r.length > 1 ? sd1(r) : 0;
-      const Q = kind === 'gaussian' ? (p => gm + gs * probit(p)) : (p => quantile(r, p));
-      const cent = []; for (let p = 1; p <= 99; p++) cent.push(Q(p / 100));
-      return { lo: Q(qlo), hi: Q(qhi), cent, r, gm, gs };
+      const r = Float64Array.from(rs).sort(), n = r.length, gm = mean(r), gs = n > 1 ? sd1(r) : 0;
+      const abs = Float64Array.from(rs, Math.abs).sort();
+      const rank = (values, k) => k < 1 ? -Infinity : k > n ? Infinity : values[k - 1];
+      const Q = mode === 'gaussian' ? (p => gm + gs * probit(p)) : mode === 'asymmetric'
+        ? (p => rank(r, p < 0.5 ? down((n + 1) * p) : up((n + 1) * p)))
+        : (p => p === 0.5 ? 0 : (p < 0.5 ? -1 : 1) * rank(abs, Math.max(1, up((n + 1) * Math.abs(2 * p - 1)))));
+      const cent = Array.from({ length: 99 }, (_, k) => Q((k + 1) / 100));
+      return { lo: Q(qlo), hi: Q(qhi), cent, Q, n, gm, gs };
     };
-    const G = mk(resid); let tab = null, cph = null;
+    const finite = g => Number.isFinite(g.lo) && Number.isFinite(g.hi) && g.cent.every(Number.isFinite);
+    const G = mk(resid), notes = {};
+    let tab = null, cph = null, fallback = [];
     if (ph && ph.T >= 2 && ph.rph.length === resid.length) {
-      const groups = Array.from({ length: ph.T }, () => []); for (let k = 0; k < resid.length; k++) groups[ph.rph[k]].push(resid[k]);
-      tab = groups.map(g => (g.length >= 20 ? mk(g) : G)); cph = ph.tph;
+      const groups = Array.from({ length: ph.T }, () => []);
+      for (let k = 0; k < resid.length; k++) groups[ph.rph[k]].push(resid[k]);
+      tab = groups.map((g, phase) => {
+        if (g.length >= 20) { const candidate = mk(g); if (mode === 'gaussian' || finite(candidate)) return candidate; }
+        fallback.push(phase); return G;
+      });
+      cph = ph.tph;
     }
-    const at = i => (tab ? tab[cph[i]] : G), sc = scale || pred.map(() => 1);
-    return { lo: pred.map((v, i) => clip(v + at(i).lo * sc[i])), hi: pred.map((v, i) => clip(v + at(i).hi * sc[i])),
-      cq: (i, k) => clip(pred[i] + at(i).cent[k] * sc[i]), cent: tab ? tab.map(t => t.cent) : G.cent, cph, sc, rlo: G.lo, rhi: G.hi,
+    if (fallback.length) notes.phaseFallback = `${fallback.length} phase(s) use the global calibration errors: too few errors for the requested conformal ranks or the 99 centiles.`;
+    if (mode !== 'gaussian' && !finite(G)) notes.interval = 'Too few global calibration errors for a requested conformal rank: a limit or centile is unbounded. Infinite values are exported explicitly; some probabilistic scores can be infinite.';
+    const at = i => tab ? tab[cph[i]] : G, sc = scale || pred.map(() => 1);
+    const value = (i, offset) => clip(pred[i] + (sc[i] === 0 ? 0 : offset * sc[i]));
+    return { lo: pred.map((_, i) => value(i, at(i).lo)), hi: pred.map((_, i) => value(i, at(i).hi)),
+      cq: (i, k) => value(i, at(i).cent[k]), cent: tab ? tab.map(t => t.cent) : G.cent, cph, sc, rlo: G.lo, rhi: G.hi,
+      notes, mode, calibration: { source: 'temporal-out-of-fold-errors', n: resid.length, mode, fallbackPhases: fallback },
       offsets: tab ? tab.map(({ lo, hi }) => ({ lo, hi })) : { lo: G.lo, hi: G.hi },
       pitSpan: (y, i) => {
-        const { r, gm, gs } = at(i), shift = pred[i], factor = sc[i];
+        const group = at(i), shift = pred[i], factor = sc[i], zeroClip = clip(-1) === 0;
         const point = v => y === v ? [0, 1] : y < v ? [0, 0] : [1, 1];
-        const zeroClip = clip(-1) === 0;
         if (zeroClip && y < 0) return [0, 0];
         if (factor === 0) return point(clip(shift));
-        if (kind === 'gaussian') {
-          const center = shift + gm * factor, sigma = gs * factor;
+        if (mode === 'gaussian') {
+          const center = shift + group.gm * factor, sigma = group.gs * factor;
           if (!sigma) return point(clip(center));
           const u = normalCdf((y - center) / sigma);
           return [zeroClip && y === 0 ? 0 : u, u];
         }
-        // Invert the linearly interpolated empirical quantile including both sample endpoints.
-        // Outside the empirical support, the CDF is exactly 0 or 1.
-        const q = j => shift + r[j] * factor, n = r.length;
-        if (q(0) === q(n - 1)) return point(clip(q(0)));
-        const bound = inclusive => {
-          let a = 0, b = n;
-          while (a < b) {
-            const m = (a + b) >> 1, v = q(m);
-            if (v < y || (inclusive && v === y)) a = m + 1; else b = m;
+        // Generalised inverse of the SAME stepwise quantile used by every output.
+        // F(y-) = measure{p: Q(p)<y}, F(y) = measure{p: Q(p)<=y}; ties form a PIT span.
+        const invert = inclusive => {
+          let lo = 0, hi = 1;
+          for (let k = 0; k < 54; k++) {
+            const p = (lo + hi) / 2, q = value(i, group.Q(p));
+            if (q < y || (inclusive && q === y)) lo = p; else hi = p;
           }
-          return a;
+          return (lo + hi) / 2;
         };
-        const lower = bound(false), upper = bound(true);
-        if (lower !== upper) return [zeroClip && y === 0 ? 0 : lower / (n - 1), (upper - 1) / (n - 1)];
-        let u;
-        if (lower === 0) u = 0;
-        else if (lower === n) u = 1;
-        else u = (lower - 1 + (y - q(lower - 1)) / (q(lower) - q(lower - 1))) / (n - 1);
-        return [zeroClip && y === 0 ? 0 : u, u];
+        return [zeroClip && y === 0 ? 0 : invert(false), invert(true)];
       } };
   }
   /* ---------- solar series: sun elevation and night mask (option cfg.solar) ----------
@@ -1211,7 +1224,7 @@
     const n1 = ref > 0 ? mae / L(pers, 1) : NaN;
     const n2 = ref > 0 ? rmse / ref : NaN;
     const n3 = ref > 0 ? L(p, 3) / L(pers, 3) : NaN;
-    const notes = {};
+    const notes = Object.assign({}, bd.notes || {});
     if (!n) notes.sample = 'No positive observed targets in the aligned test window.';
     else {
       if (normal.note) notes.normalization = normal.note;
@@ -1309,7 +1322,7 @@
       const sub = a => pick ? pick.map(i => a[i]) : a;
       const selectBand = bd => pick ? {
         lo: sub(bd.lo), hi: sub(bd.hi), cq: (j, k) => bd.cq(pick[j], k),
-        pitSpan: (v, j) => bd.pitSpan(v, pick[j]),
+        pitSpan: (v, j) => bd.pitSpan(v, pick[j]), notes: bd.notes,
       } : bd;
       const night = sol ? Uint8Array.from(y, v => (v === 0 ? 1 : 0)) : null;
       // the persistence reference follows the same rule, so that NICE compares like with like on every hour
@@ -1341,7 +1354,8 @@
           const rph = []; for (const { a, b } of smp.folds) for (let i = a; i < b; i++) rph.push((smp.tr[i] + h) % cfg.T);
           ph = { T: cfg.T, rph, tph: smp.te.map(t => (t + h) % cfg.T) };
         }
-        const bd0 = band(r.pred, r.resid, cfg.qlo, cfg.qhi, clipO, cfg.bandKind, r.scale, ph);
+        const asymmetric = cfg.bandAsym !== undefined ? cfg.bandAsym : true;
+        const bd0 = band(r.pred, r.resid, cfg.qlo, cfg.qhi, clipO, cfg.bandKind, r.scale, ph, asymmetric);
         if (hooks.capture) hooks.capture({ id, h, ctx, smp, r, bd: bd0 });
         // solar rule (S1): observed 0 → forecast, limits and centiles 0; the forecast distribution there is a point mass at 0
         const bd = night ? Object.assign({}, bd0, { lo: bd0.lo.map((v, i) => (night[i] ? 0 : v)), hi: bd0.hi.map((v, i) => (night[i] ? 0 : v)),
@@ -1352,9 +1366,9 @@
           tried: (r.tried || []).map(o => Object.assign({}, o, { cvRmse: o.cv * s0 })), cvDen: cvNormal.value, cvFolds: r.cvFolds,
           cvRmse: r.cv * s0, score: scores(sy, sub(r.pred), sp, sbd, cfg.norm, cfg.qlo, cfg.qhi), resid: { lo: bd.rlo, hi: bd.rhi, n: r.resid.length },
           scoreAll: pick ? scores(y, r.pred, persAll, bd, cfg.norm, cfg.qlo, cfg.qhi) : undefined, night: night ? night.reduce((a, b) => a + b, 0) : 0,
-          qq: qq(sy, sub(r.pred), sbd, r.resid), cent: bd.cent, cph: bd.cph, low0: clipO(-1) === 0, sc: r.scale ? bd.sc : null };
+          interval: bd0.calibration, qq: qq(sy, sub(r.pred), sbd, r.resid), cent: bd.cent, cph: bd.cph, low0: clipO(-1) === 0, sc: r.scale ? bd.sc : null };
       }
-      H.persistence = scores(sy, sp, sp, band(sp, [0], cfg.qlo, cfg.qhi, v => v), cfg.norm, cfg.qlo, cfg.qhi);
+      H.persistence = scores(sy, sp, sp, band(sp, [0], cfg.qlo, cfg.qhi, v => v, 'gaussian'), cfg.norm, cfg.qlo, cfg.qhi);
       out.horizons.push(H);
     }
     return out;
