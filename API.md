@@ -50,7 +50,7 @@ Every field is optional. A **settings file** has no `learn` and no `forecast`: i
 | `pca` | true / false | PCA of the inputs, keeping 95 % of the variance. |
 | `interval` | `{kind, coverage}` or `{kind, lower, upper}` | `kind`: conformal or gaussian. `coverage` in % (10–99), or `lower` and `upper` levels in %. |
 | `interval.perPhase` | true (default) / false | Empirical quantiles of the out-of-fold errors of the same phase of the period. Width can vary with phase. Needs a period. No formal coverage guarantee after time-based model selection. |
-| `prep` | none, center, standard | Centre, or centre and scale, the series; outputs come back in the original units. |
+| `prep` | none, center, standard, profile | Centre, or centre and scale, the series, or remove its mean profile (mean of the learning values at each step of the period; needs `period` ≥ 2). Outputs come back in the original units. Persistence and climatology always use the series as it is. |
 | `norm` | mean, sd, none | Divisor of the normalized errors (nRMSE, nMAE…). Normalized errors are fractions: 0.22, not 22 %. |
 | `clip` | true (default) / false | Set forecasts and limits below 0 to 0, when the learning series has no negative value. For GHI, GTI or PV, keep every hour (a regular grid is needed) and see `solar`. |
 | `label` | text | Shown above the data. |

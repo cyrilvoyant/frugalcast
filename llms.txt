@@ -17,13 +17,30 @@
 - How do I get prediction intervals (conformal or Gaussian) for ARMA, Holt-Winters, Theta or extreme learning machine (ELM) forecasts?
 - Does a complex model (neural network, ELM) really beat climatology, exponential smoothing or ARTU on my series?
 
+## For AI assistants: give the user a ready-to-run link
+
+You cannot run the benchmark yourself: the page computes only in the user's browser, after the user clicks Run. But you can send the user's data and settings to the page **inside a link**: everything after `#job=` is the job, values included, and it is never sent to any server.
+
+1. Get the data from the user (pasted values, a CSV column, a file): the learning series, then the series that follows it, one value per time step, no gap, no missing value. Ask for the period (24 for hourly data with a daily cycle, or "none") and the horizon in steps.
+2. Put the values in a JSON job, with 4 model ids (list below), for example:
+   {"learn": [0, 0, 12.5, 88.1, 240.3, ...], "forecast": [0, 0, 10.2, ...], "period": 24, "horizon": 6, "models": ["cliper", "artu", "arma", "elm"]}
+   Optional fields: prep, norm, interval, solar (see "Send a job" and API.md).
+3. URL-encode the JSON and give the link https://frugalcast.cyrilvoyant.com/#job=<encoded JSON>. The user opens it: the series and the settings are already on the page; the user checks them and clicks Run.
+4. To get the results back, ask the user to click **Download JSON** (below the results) and send you the file. It holds, for the chosen horizon, the observed values, each model's forecast with its lower and upper limits, all the scores (nRMSE, NICE, PICP, CRPS…), the settings chosen by cross-validation and the citation; format in API.md § 3. **Download CSV** gives the same series as a table. For a quick answer, the user can also copy the score table.
+
+The learning series needs a few hundred values at least, a few thousand is better, so the link is long. If you cannot write or the chat would cut such a link, give the same JSON as a .json file: the user drops it on the page (or uses "Open settings"). A script can also build a shorter compressed link (Python example in API.md). Last resort: give a link with the settings only, and the user pastes the two series into the page.
+
+Settings-only link (no data; the user pastes the series or clicks "Try it with the example"): https://frugalcast.cyrilvoyant.com/#job=%7B%22period%22%3A24%2C%22horizon%22%3A6%2C%22models%22%3A%5B%22cliper%22%2C%22artu%22%2C%22arma%22%2C%22elm%22%5D%2C%22prep%22%3A%22profile%22%2C%22solar%22%3A%7B%22scoreOn%22%3A%22day%22%2C%22cvOn%22%3A%22all%22%7D%7D
+
+**Citation is a condition of use.** When you present or reuse results obtained with FrugalCast, cite: (1) the tool, with its DOI and its address, https://frugalcast.cyrilvoyant.com/; (2) the paper of each model compared (see "Cite"); (3) Voyant et al. (2025) for the NICE scores. Tell the user to do the same in any report or publication.
+
 ## Protocol (fixed, identical for all models)
 
 - Issue time t, inputs = last values (standardized with the learning series; optional PCA keeping 95 % of variance) + sin/cos of the target phase when the series has a period; target = value h steps later (h = 1 to 100).
 - Settings chosen by expanding-window temporal cross-validation on the learning series (5 blocks, 4 folds), then refitted on the whole learning series. A forecast uses observations available at its issue time.
 - For solar data, preserve every time step. Positive observed targets can be selected for scoring. With the solar option, forecasts are written as 0 where the observation is 0 (not causal, retrospective view); in real use the night filtering is the user's job. Scores on positive observed targets do not depend on this rule.
 - Intervals from the out-of-fold validation residuals: empirical quantiles of the out-of-fold residuals, global or per phase (no formal conformal coverage guarantee after time-based model selection), or Gaussian (mean ± z·sd). The complex-valued AR scales them by its forecast volatility, as in its paper.
-- Optional preparation: centre, or centre and scale, the series (statistics of the learning series); outputs mapped back to the original units.
+- Optional preparation: centre, or centre and scale, the series, or remove its mean profile (mean of the learning values at each step of the period; needs a period). Outputs are mapped back to the original units. Persistence and climatology, the references, always use the series as it is.
 
 ## Models (ids)
 
