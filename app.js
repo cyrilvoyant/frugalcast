@@ -85,6 +85,16 @@
     c.querySelector('.about').innerHTML = `${ABOUT[s.value] || ''}${need.length ? ` <i>(${need.join(', ')})</i>` : ''} <a href="${m.ref[0]}" target="_blank" rel="noopener">${m.ref[1]} →</a>`;
   }
   sels.forEach(s => { about(s); s.addEventListener('change', () => { about(s); store.set('models', sels.map(x => x.value)); }); });
+  function lockCycle(none) { // no period: the models that need one cannot be chosen; the previous choice comes back with the period
+    sels.forEach(s => {
+      [...s.options].forEach(o => { o.disabled = none && !!E.MODELS[o.value].needsCycle; });
+      if (none && E.MODELS[s.value].needsCycle) {
+        const used = new Set(sels.map(x => x.value)), alt = ids.find(i => !E.MODELS[i].needsCycle && !used.has(i));
+        s.dataset.prev = s.value; s.value = alt; about(s);
+      } else if (!none && s.dataset.prev) { if (!sels.some(x => x.value === s.dataset.prev)) { s.value = s.dataset.prev; about(s); } delete s.dataset.prev; }
+    });
+    store.set('models', sels.map(x => x.value));
+  }
   $('refs').innerHTML = ids.map(i => `<li><b>${E.MODELS[i].name}</b> — ${ABOUT[i] || ''} <a href="${E.MODELS[i].ref[0]}">${E.MODELS[i].ref[1]}</a></li>`).join('') +
     '<li><b>Prediction intervals</b> — <a href="https://www.cyrilvoyant.com/tools/probabilistic-solar-forecasting/">Probabilistic forecasting</a></li>' +
     '<li><b>NICE<sup>k</sup> scores</b> — <a href="https://www.cyrilvoyant.com/latest-publications-and-news/nice-forecast-evaluation/">NICE: errors relative to persistence</a></li>' +
@@ -100,7 +110,101 @@
 
   // ---------- inputs ----------
   let learnN = 0;
-  const count = (id, out) => { const r = E.parse($(id).value, 'x'); const n = r.values ? r.values.length : 0; $(out).textContent = n ? `${n.toLocaleString('en')} values` : ''; if (id === 'learn') { learnN = n; syncAnnual(); } };
+  const count = (id, out) => { const r = E.parse(seriesText(id), 'x'); const n = r.values ? r.values.length : 0; $(out).textContent = n ? `${n.toLocaleString('en')} values` : ''; if (id === 'learn') { learnN = n; syncAnnual(); if ($('fore').value.trim()) qc('fore'); } qc(id); };
+  // optional date column: "date;value" or "date<TAB>value" on every line (ISO 8601: 2026-06-01, 2026-06-01T10:00, 2026-06-01 10:00+02:00, or 2026-06 for months)
+  const DATE = /^(\d{4})-(\d{2})(?:-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?)?)?\s*(Z|[+-]\d{2}:?\d{2})?$/;
+  function splitDates(text) { // null when the lines are not dated; otherwise the values (same line numbers) and the dates
+    const lines = text.replace(/\r\n?/g, '\n').split('\n'), dates = [], vals = [], multi = [], invalid = [], blank = [];
+    for (let i = 0; i < lines.length; i++) {
+      const s = lines[i].trim(); if (!s) { vals.push(''); continue; }
+      const f = s.split(/[;\t]/).map(x => x.trim()), m = f.length > 1 ? DATE.exec(f[0]) : null;
+      if (!m) { if (!dates.length && !vals.some(Boolean) && !/\d/.test(f[f.length - 1])) { vals.push(''); continue; } return null; } // a header line is skipped
+      if (f.length > 2) multi.push(i + 1);
+      if (!realDate(m)) invalid.push(i + 1);
+      if (!f[1]) blank.push(i + 1); // a dated line without its value is a missing value, not a final line break
+      dates.push({ m, s: f[0], line: i + 1 }); vals.push(f[1]);
+    }
+    return dates.length ? { dates, multi, invalid, blank, text: vals.join('\n') } : null;
+  }
+  function realDate(m) { // the calendar date and the time exist (no 30 February, no 24:00, no 10:75)
+    const y = +m[1], mo = +m[2], d = m[3] ? +m[3] : 1, h = +(m[4] || 0), mi = +(m[5] || 0), s = +(m[6] || 0);
+    if (mo < 1 || mo > 12 || d < 1 || h > 23 || mi > 59 || s > 59) return false;
+    if (new Date(Date.UTC(y, mo - 1, d)).getUTCDate() !== d) return false;
+    if (m[7] && m[7] !== 'Z') { const z = m[7].slice(1).replace(':', ''); if (+z.slice(0, 2) > 14 || +z.slice(2) > 59) return false; }
+    return true;
+  }
+  const offMin = z => { if (!z || z === 'Z') return 0; const s = z[0] === '-' ? -1 : 1, d = z.slice(1).replace(':', ''); return s * (+d.slice(0, 2) * 60 + +d.slice(2)); };
+  function stamps(dates) { // month index for monthly dates, else minutes (a written offset is applied; no offset: read as written)
+    const monthly = dates.every(d => !d.m[4] && (!d.m[3] || d.m[3] === dates[0].m[3]));
+    return { monthly, t: dates.map(({ m }) => monthly ? +m[1] * 12 + +m[2] - 1
+      : Date.UTC(+m[1], +m[2] - 1, +(m[3] || 1), +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) / 60000 - offMin(m[7])) };
+  }
+  const stepName = (s, monthly) => monthly ? (s === 1 ? 'month' : `${s} months`) : s % 1440 === 0 ? (s === 1440 ? 'day' : `${s / 1440} days`) : s % 60 === 0 ? (s === 60 ? 'hour' : `${s / 60} hours`) : `${s} min`;
+  const seriesText = id => { const d = splitDates($(id).value); return d ? d.text : $(id).value; };
+  // data check, shared by the box under each series and by the Run button: each check passed (✓) or what is wrong (✗)
+  function analyse(id) {
+    const raw = $(id).value;
+    if (!raw.trim()) return null;
+    const D = splitDates(raw), text = D ? D.text : raw;
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
+    let last = lines.length - 1; while (last > 0 && !lines[last].trim()) last--;
+    let first = 0; while (first < last && !lines[first].trim()) first++;
+    const empty = []; for (let i = first; i <= last; i++) if (!lines[i].trim()) empty.push(i + 1);
+    const r = E.parse(text, 'Line check'), v = r.values || [];
+    const ln = a => (a.length > 3 ? a.slice(0, 3).join(', ') + ` and ${(a.length - 3).toLocaleString('en')} more` : a.join(', '));
+    const checks = [
+      [!r.error, 'Every value is a number (no NaN, no empty cell, no text)', r.error ? r.error.replace(/^Line check: line/, 'Line') : ''],
+      [!empty.length, 'No empty line inside the series', empty.length ? `Empty line ${ln(empty)}: a missing value? Put a number instead (0, the previous value or a mean) so that the line still exists.` : ''],
+      [v.length < 2 || Math.max(...v) > Math.min(...v), 'The series is not constant', 'All values are equal: nothing to forecast.'],
+    ], notes = [];
+    const per = readT(), T = per.error ? 0 : per.T;
+    if (D) {
+      checks.push([!D.multi.length, 'One value after each date', `Line ${ln(D.multi)}: several values after the date; keep only the date and one value.`]);
+      checks.push([!D.blank.length, 'A value after each date', `Line ${ln(D.blank)}: a date without its value. Put a number (0, the previous value or a mean).`]);
+      checks.push([!D.invalid.length, 'Every date exists', `Line ${ln(D.invalid)}: this date or time does not exist (30 February, 24:00, 10:75…).`]);
+      if (!D.invalid.length) {
+        const S = stamps(D.dates), t = S.t, cnt = new Map(), bad = [], gaps = [], odd = [];
+        for (let i = 1; i < t.length; i++) { const x = t[i] - t[i - 1]; if (x > 0) cnt.set(x, (cnt.get(x) || 0) + 1); }
+        const step = [...cnt].sort((a, b) => b[1] - a[1])[0]?.[0];
+        for (let i = 1; i < t.length; i++) { const x = t[i] - t[i - 1]; if (x <= 0) bad.push(D.dates[i].line); else if (x % step) odd.push(D.dates[i].line); else if (x > step) gaps.push(i - 1); }
+        notes.push(`ℹ Dates read: ${D.dates[0].s} to ${D.dates[D.dates.length - 1].s}${step ? `, one line per ${stepName(step, S.monthly)}` : ''}. Only the values are used by the models.`);
+        checks.push([!bad.length, 'Dates in increasing order, no duplicate', `Line ${ln(bad)}: date not after the previous one (duplicate or out of order; a clock change in local time?).`]);
+        if (step) checks.push([!odd.length, `Same time step everywhere (${stepName(step, S.monthly)})`, `Line ${ln(odd)}: the time since the previous line is not a whole number of steps (one step = one ${stepName(step, S.monthly)}). Use one time step for the whole series.`]);
+        const g0 = gaps[0], gtxt = gaps.length ? `${gaps.length.toLocaleString('en')} gap${gaps.length > 1 ? 's' : ''}, the first after line ${D.dates[g0].line} (${D.dates[g0].s} → ${D.dates[g0 + 1].s})` : '';
+        if (T) checks.push([!gaps.length, 'No gap: one line for every time step', `${gtxt}: add one line per missing step, with a number (0, the previous value or a mean), so that the phase stays right.`]);
+        else if (gaps.length) notes.push(`ℹ ${gtxt}. No period is declared, so the phase does not matter: if no value exists on those dates (weekends, holidays), this is fine.`);
+        if (id === 'learn' && T && step) {
+          const m = D.dates[0].m, hm = +(m[4] || 0) * 60 + +(m[5] || 0), k = (1440 - hm) / step;
+          if (!S.monthly && step * T === 1440) checks.push([hm === 0, 'Starts at the beginning of a day (00:00)', `First value at ${m[4]}:${m[5]}: with a daily cycle, the first line should be at 00:00 (in the clock of your dates)${Number.isInteger(k) ? `; remove the first ${k} line${k > 1 ? 's' : ''}` : ''}.`]);
+          else if (S.monthly && step === 1 && T === 12) checks.push([m[2] === '01', 'Starts in January (yearly cycle)', `First value in month ${m[2]}: with a yearly cycle, the first line should be a January; remove the first ${13 - +m[2]} lines.`]);
+          else notes.push('ℹ Start of the period not checked for this period and time step.');
+        }
+        if (id === 'fore' && step) {
+          const L = splitDates($('learn').value);
+          if (L && !L.invalid.length) {
+            const SL = stamps(L.dates);
+            if (SL.monthly === S.monthly) {
+              const gap = t[0] - SL.t[SL.t.length - 1], okc = gap === step, msg = `The learning series ends at ${L.dates[L.dates.length - 1].s} and this one starts at ${D.dates[0].s}`;
+              if (T) checks.push([okc, 'Follows the learning series with no step missing', `${msg}: it should start one step later.`]);
+              else if (!okc) notes.push(`ℹ ${msg}.`);
+            }
+          }
+        }
+      }
+    }
+    if (v.length && Math.min(...v) < 0) notes.push('ℹ Some values are negative: the three ELMs that take a logarithm will be set aside.');
+    if (!D) notes.push('ℹ No date column: gaps and the start of the period cannot be checked here. Optional: put the date before each value (2026-06-01T10:00;412.5).');
+    return { checks, notes, v, ok: checks.every(c => c[0]) };
+  }
+  function qc(id) {
+    const box = $('qc-' + id), A = analyse(id);
+    box.textContent = '';
+    if (!A) { box.hidden = true; return; }
+    const h = document.createElement('b'); h.textContent = A.ok ? `Data check: OK (${A.v.length.toLocaleString('en')} values)` : 'Data check: to fix'; box.append(h);
+    for (const [pass, label, why] of A.checks) { const p = document.createElement('div'); p.className = pass ? 'ok' : 'ko'; p.textContent = (pass ? '✓ ' : '✗ ') + (pass ? label : why); box.append(p); }
+    for (const n of A.notes) { const p = document.createElement('div'); p.className = 'info'; p.textContent = n; box.append(p); }
+    box.classList.toggle('bad', !A.ok); box.hidden = false;
+  }
   // annual cycle: only when one period can be one day (T >= 24) and the learning series covers two years
   function annualNeed() { const r = readT(); return !r.error && r.T >= 24 ? 730 * r.T : 0; }
   function syncAnnual() {
@@ -145,20 +249,21 @@
   function syncPeriod() {
     const r = readT(), none = !r.error && r.T === 0;
     ['weeklyL', 'prepProfL'].forEach(id => $(id).classList.toggle('off', none || !!r.error));
+    lockCycle(none); if ($('learn').value.trim()) qc('learn'); if ($('fore').value.trim()) qc('fore');
     if (none) { $('weekly').checked = false; $('annual').checked = false; const pp = document.querySelector('input[name="prep"][value="profile"]'); if (pp.checked) document.querySelector('input[name="prep"][value="none"]').checked = true; }
-    const lb = r.error ? null : E.inputOptions(r.T);
+    const lb = r.error ? null : E.inputOptions(r.T), capped = !r.error && 2 * r.T > 500, short = !r.error && r.T > 0 && r.T < 8;
     $('Thint').textContent = r.error ? 'Enter a whole number of steps, or none.' : none
-      ? 'Non-periodic: no clock inputs; cyclic models are set aside. Inputs are 1, 2, 4 or 8 lags.'
-      : `Clock inputs: sin/cos of the phase over ${r.T} steps. Inputs of 0.5 to 2 periods = ${lb.join(', ')} lags.`;
-    $('lbUnit').textContent = none ? '(lags)' : '(periods)';
-    if (lb) [...$('lbFix').options].forEach((o, i) => { o.textContent = none ? `${lb[i]} lag${lb[i] > 1 ? 's' : ''}` : `${['0.5', '1', '1.5', '2'][i]} period${i >= 2 ? 's' : ''} = ${lb[i]} lags`; });
-    $('optInL').textContent = none ? 'Inputs: 1, 2, 4, 8 lags' : 'Inputs: 0.5, 1, 1.5, 2 periods';
+      ? 'Non-periodic: no clock inputs; cyclic models are set aside. Inputs: 8, 16, 24 or 32 lags (no period, so no natural scale: up to 32 past values).'
+      : `Clock inputs: sin/cos of the phase over ${r.T} steps. Inputs: ${lb.join(', ')} lags${capped ? ' (capped at 500 past values)' : short ? ' (period under 8 steps: up to 32 past values)' : ' (0.5 to 2 periods)'}.`;
+    $('lbUnit').textContent = none || capped || short ? '(lags)' : '(periods)';
+    if (lb) [...$('lbFix').options].forEach((o, i) => { o.textContent = none || capped || short ? `${lb[i]} lag${lb[i] > 1 ? 's' : ''}` : `${['0.5', '1', '1.5', '2'][i]} period${i >= 2 ? 's' : ''} = ${lb[i]} lags`; });
+    $('optInL').textContent = none || short ? `Inputs: ${lb.join(', ')} lags` : capped ? `Inputs: ${lb.join(', ')} lags` : 'Inputs: 0.5, 1, 1.5, 2 periods';
     syncAnnual();
   }
   $('T').addEventListener('input', syncPeriod);
   $('Tquick').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; $('T').value = b.dataset.v; syncPeriod(); });
 
-  const EXAMPLES = { ghi: ['example-ghi.js', () => (self.PRED_EXAMPLES || {}).ghi, { scoreOn: 'day' }], edf: ['example.js', () => self.PRED_EXAMPLE, null] };
+  const EXAMPLES = { ghi: ['example-ghi.js', () => (self.PRED_EXAMPLES || {}).ghi, { scoreOn: 'day' }], edf: ['example.js', () => self.PRED_EXAMPLE, null], gti: ['example-gti.js', () => (self.PRED_EXAMPLES || {}).gti, { scoreOn: 'day' }], sunspots: ['example-sunspots.js?v=1.1.0', () => (self.PRED_EXAMPLES || {}).sunspots, null], eurusd: ['example-eurusd.js?v=1.1.0', () => (self.PRED_EXAMPLES || {}).eurusd, null], us10y: ['example-us10y.js?v=1.1.0', () => (self.PRED_EXAMPLES || {}).us10y, null], dkasc: ['example-dkasc.js?v=1.1.0', () => (self.PRED_EXAMPLES || {}).dkasc, { scoreOn: 'day' }] };
   const syncSolar = () => $('solarBox').classList.toggle('hidden', !$('solar').checked);
   $('solar').addEventListener('change', syncSolar);
   function setSolar(o) { $('solar').checked = !!o; if (o && o.scoreOn) $('solScore').value = o.scoreOn; if (o && o.cvOn) $('solCv').value = o.cvOn; syncSolar(); }
@@ -166,7 +271,7 @@
     const [file, get, sol] = EXAMPLES[key || $('exsel').value] || EXAMPLES.ghi;
     const load = () => {
       const x = get();
-      $('learn').value = x.learn.join('\n'); $('fore').value = x.forecast.join('\n'); $('T').value = x.T; syncPeriod();
+      const dl = (v, d) => d ? v.map((y, i) => d[i] + ';' + y) : v; $('learn').value = dl(x.learn, x.dates && x.dates.learn).join('\n'); $('fore').value = dl(x.forecast, x.dates && x.dates.forecast).join('\n'); $('T').value = x.T; syncPeriod();
       $('weekly').checked = x.weekly; setSolar(sol); $('exlabel').textContent = x.label; count('learn', 'nlearn'); count('fore', 'nfore'); then && then();
     };
     if (get()) return load();
@@ -183,9 +288,10 @@
   }
   function readJob() {
     $('err').classList.remove('on');
-    const L = E.parse($('learn').value, 'Learning series', maxLearn); if (L.error) return fail(L.error);
+    for (const [id, name] of [['learn', 'Learning series'], ['fore', 'Series to forecast']]) { const A = analyse(id), k = A && A.checks.find(c => !c[0]); if (k) { qc(id); return fail(`${name}: ${k[2]} (see the data check under the box).`); } }
+    const L = E.parse(seriesText('learn'), 'Learning series', maxLearn); if (L.error) return fail(L.error);
     if (L.values.length > 10000) $('status').textContent = `Long learning series (${L.values.length.toLocaleString('en')} values): the search can take several minutes.`;
-    const F = E.parse($('fore').value, 'Series to forecast', maxLearn); if (F.error) return fail(F.error);
+    const F = E.parse(seriesText('fore'), 'Series to forecast', maxLearn); if (F.error) return fail(F.error);
     const P = readT(); if (P.error) return fail(P.error);
     const T = P.T, h = Number($('horizon').value);
     if (!Number.isInteger(h) || h < 1 || h > 100) return fail(`Horizon: "${$('horizon').value}" is not a whole number of lags between 1 and 100.`);
@@ -203,19 +309,30 @@
       train: L.values, test: F.values, models,
       cfg: { T, weekly: $('weekly').checked, annual: $('annual').checked, horizons: [h], lbOpts, pca: $('pca').checked, pcaVar: 0.95,
         opt: { inputs: $('optIn').checked, neurons: $('optNh').checked, ridge: $('optLam').checked, smooth: $('optSm').checked },
-        nhOpts: [10, 50, 100, 500], ncand: 30, ncandFixed: 1,
+        nhOpts: [10, 50, 100, 500], ncand: 30, ncandFixed: 30, // every ELM keeps the best of 30 random hidden layers, searched settings or not (Cyril, 2026-11-25)
         lbFixed: lbOpts[+$('lbFix').value], nhFixed: +$('nhFix').value, lamFixed: +$('lamFix').value,
         act: $('act').value, qlo, qhi, bandKind: $('bandKind').value, bandAsym: $('asym').checked, bandPhase: $('bandPhase').checked, norm: radio('norm'), prep: radio('prep'), clip: $('clip').checked, solar: solarCfg(), seed: 42, folds: 5 },
     };
   }
 
   // ---------- run ----------
+  // the three data rules, recalled once per visit before the first run (the tool cannot see time stamps)
+  let rulesOk = false; try { rulesOk = sessionStorage.getItem('frugalcast.rulesOk') === '1'; } catch (e) { /* storage blocked */ }
   $('go').addEventListener('click', () => {
+    if (rulesOk) return runNow();
+    try { $('rulesDlg').showModal(); } catch (e) { runNow(); }
+  });
+  $('rulesBack').addEventListener('click', () => $('rulesDlg').close());
+  $('rulesOk').addEventListener('click', () => {
+    if ($('rulesSkip').checked) { rulesOk = true; try { sessionStorage.setItem('frugalcast.rulesOk', '1'); } catch (e) { /* storage blocked */ } }
+    $('rulesDlg').close(); runNow();
+  });
+  function runNow() {
     const nj = readJob(); if (!nj) { API.error($('err').textContent); return; }
     job = nj; result = null; ran = API.snapshot(); $('results').classList.add('hidden'); $('kpis').innerHTML = ''; $('err').classList.remove('on'); // nothing from the previous run stays on screen
     $('go').disabled = true; $('stop').disabled = false; $('barfill').style.width = '0';
     $('status').textContent = 'Starting…'; t0 = performance.now();
-    try { worker = new Worker('worker.js'); } catch (e) { reset(); return fail('Open this page through a web server (not as a local file) so that the computation can run in the background.'); }
+    try { worker = new Worker('worker.js?v=1.1.0'); } catch (e) { reset(); return fail('Open this page through a web server (not as a local file) so that the computation can run in the background.'); }
     worker.onmessage = e => {
       const m = e.data;
       if (m.type === 'progress') { $('barfill').style.width = (100 * m.f).toFixed(1) + '%'; $('status').textContent = `${Math.round(100 * m.f)} % · ${m.text}`; }
@@ -224,7 +341,7 @@
     };
     worker.onerror = e => { reset(); fail((e.message || 'unknown error') + '. Please report it with the settings used.', 'Computation error'); API.error(e.message || 'unknown error'); };
     worker.postMessage(job);
-  });
+  }
   $('stop').addEventListener('click', () => { if (worker) worker.terminate(); reset(); $('status').textContent = 'Stopped.'; });
   function reset() { $('go').disabled = false; $('stop').disabled = true; worker = null; }
 
@@ -243,7 +360,7 @@
     draw();
     $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-  const winLen = () => 3 * (job.cfg.T || 24);
+  const winLen = () => { const T = job.cfg.T || 24; return Math.min(3 * T, Math.max(T, 150)); }; // 3 periods, at most 150 steps (one period if longer), so that the plot stays readable and scrolls
   $('pmsel').addEventListener('change', () => { drawSeries(); drawDx(); });
   $('win').addEventListener('input', () => { drawSeries(); if (on('fan')) PLOT.fan($('dx-fan'), H(), shown(H())); });
   document.querySelectorAll('.dx').forEach(c => c.addEventListener('change', drawDx));
@@ -262,21 +379,21 @@
   const SEARCHED = { inputs: 'inputs', neurons: 'neurons', ridge: 'ridge', 'ridge λ (GCV)': 'none' }; // GCV is not a CV search: no CV badge, the label says GCV
   function settings(id, m) {
     const c = m.chosen || {}, o = job.cfg.opt || {}, keys = Object.keys(c);
-    const lab = k => k === 'inputs' ? 'inputs (lags)' : k === 'candidate' ? 'random layer no.' : k;
+    const lab = k => k === 'inputs' ? 'inputs (lags)' : k === 'candidate' ? 'random layer no.' : k === 'PCA components' ? 'PCA components kept (95 %)' : k;
     const rows = keys.filter(k => c[k] !== null && c[k] !== undefined).map(k => {
-      const searched = (SEARCHED[k] && o[SEARCHED[k]]) || (k === 'candidate' && (o.inputs || o.neurons)) || (!SEARCHED[k] && k !== 'candidate' && k !== 'theta' && k !== 'orders p(h)' && o.smooth);
-      return `<div class="row set"><span>${lab(k)}${searched ? ' <i class="cvk">CV</i>' : ''}</span><b>${typeof c[k] === 'number' ? +c[k].toPrecision(4) : c[k]}</b></div>`;
+      const searched = (SEARCHED[k] && o[SEARCHED[k]]) || (k === 'candidate' && (o.inputs || o.neurons)) || (!SEARCHED[k] && k !== 'candidate' && k !== 'theta' && k !== 'orders p(h)' && k !== 'PCA components' && o.smooth);
+      return `<div class="row set"><span>${lab(k)}${searched ? ' <i class="cvk" title="Chosen by cross-validation on the learning series">CV</i>' : ''}</span><b>${typeof c[k] === 'number' ? +c[k].toPrecision(4) : c[k]}</b></div>`;
     }).join('');
     const T = (m.tried || []).slice().sort((a, b) => a.cvRmse - b.cvRmse), keysT = T.length ? Object.keys(T[0]).filter(k => k !== 'cv' && k !== 'cvRmse') : [];
     const canNormalize = Number.isFinite(m.cvDen) && m.cvDen > 0;
     const tried = T.length ? `<details class="tried"><summary>${T.length} configurations tested</summary><table><thead><tr>${keysT.map(k => `<th>${lab(k)}</th>`).join('')}<th>RMSE</th>${canNormalize ? '<th>nRMSE</th>' : ''}</tr></thead><tbody>${T.map((o, i) => `<tr${i ? '' : ' class="kept"'}>${keysT.map(k => `<td>${typeof o[k] === 'number' ? +o[k].toPrecision(4) : o[k]}</td>`).join('')}<td>${fmt(o.cvRmse)}</td>${canNormalize ? `<td>${Number.isFinite(o.cvRmse) ? (o.cvRmse / m.cvDen).toFixed(4) : '–'}</td>` : ''}</tr>`).join('')}</tbody></table></details>` : '';
-    const folds = m.cvFolds?.length ? `<details class="tried"><summary>Validation by fold (${H().cvValidation?.used ?? m.cvFolds.length} used)</summary><table><thead><tr><th scope="col">Fold</th><th scope="col">Targets</th><th scope="col">RMSE</th><th scope="col">Bias</th></tr></thead><tbody>${m.cvFolds.map((f, i) => `<tr><th scope="row">${i + 1}</th><td>${fmt(f.n)}</td><td>${fmt(f.rmse)}</td><td>${fmt(f.bias)}</td></tr>`).join('')}</tbody></table><small>Bias = forecast − observation.${canNormalize ? ` Validation scale ${fmt(m.cvDen)}.` : ''}</small></details>` : '';
+    const folds = m.cvFolds?.length ? `<details class="tried"><summary>Validation by fold (${H().cvValidation?.used ?? m.cvFolds.length} used)</summary><table><thead><tr><th scope="col">Fold</th><th scope="col">Points scored</th><th scope="col">RMSE</th>${canNormalize ? '<th scope="col">nRMSE</th>' : ''}<th scope="col">Bias</th></tr></thead><tbody>${m.cvFolds.map((f, i) => `<tr><th scope="row">${i + 1}</th><td>${fmt(f.n)}</td><td>${fmt(f.rmse)}</td>${canNormalize ? `<td>${Number.isFinite(f.rmse) ? (f.rmse / m.cvDen).toFixed(4) : '–'}</td>` : ''}<td>${fmt(f.bias)}</td></tr>`).join('')}</tbody></table><small>Fold k: fitted on blocks 1 to k of the learning series, scored on block k + 1. A fold with a larger error often covers a harder season. Bias = forecast − observation.${canNormalize ? ` Validation scale ${fmt(m.cvDen)}.` : ''}</small></details>` : '';
     return `<div class="sets"><div class="row"><span>Settings kept</span><small>validation RMSE ${fmt(m.cvRmse)}</small></div>${rows || '<div class="row set"><span>none (no setting)</span></div>'}${folds}${tried}</div>`;
   }
   function kpis() {
     const h = H(), ms = live(h), bn = best('nrmse', ms.map(id => h.models[id].score.nrmse));
     const sc0 = h.persistence.n, positiveOnly = result.solar?.scoreOn === 'day';
-    $('rsub').textContent = `Horizon ${h.h} · ${sc0.toLocaleString('en')} of ${h.y.length.toLocaleString('en')} forecasts scored` + (positiveOnly ? ' · observed targets > 0' : '') + (result.solar ? ' · night (observed 0) written as 0: not causal' : '');
+    $('rsub').textContent = `Learning: ${job.train.length.toLocaleString('en')} values · Test: ${job.test.length.toLocaleString('en')} values · Horizon ${h.h} · ${sc0.toLocaleString('en')} of ${h.y.length.toLocaleString('en')} forecasts scored` + (positiveOnly ? ' · observed targets > 0' : '') + (result.solar ? ' · night (observed 0) written as 0: not causal' : '');
     const warnings = new Set(live(h).flatMap(id => Object.values(h.models[id].score.notes || {})).filter(x => typeof x === 'string'));
     if (h.cvValidation?.warning) warnings.add(h.cvValidation.warning);
     if (h.cvValidation?.normalizationNote) warnings.add(`Validation: ${h.cvValidation.normalizationNote}`);
@@ -518,7 +635,7 @@
   // ---------- jobs from outside (API.md): #job= link, .json file (opened or dropped). ?job=<url> and postMessage removed (Cyril, 13 Nov. 2026): automation goes through FrugalCast Local ----------
   // Everything is computed here, in the visitor's browser. The #fragment of a URL is never sent to the server.
   const SITE = 'https://frugalcast.cyrilvoyant.com/';   // provisional address, until Cyril chooses the subdomain
-  const CITE = `Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.0.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717`;
+  const CITE = `Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.1.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717`;
   const API = (() => {
     let via = null, asked = false;
     const enc = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
@@ -588,7 +705,7 @@
     function current() {
       const r = readT(), lb = r.error ? null : E.inputOptions(r.T);
       return { format: 'frugalcast-job/1', label: $('exlabel').textContent || undefined,
-        learn: E.parse($('learn').value, 'x').values || [], forecast: E.parse($('fore').value, 'x').values || [],
+        learn: E.parse(seriesText('learn'), 'x').values || [], forecast: E.parse(seriesText('fore'), 'x').values || [],
         period: r.T || 'none', weekly: $('weekly').checked, annual: $('annual').checked, horizon: +$('horizon').value,
         models: sels.map(s => s.value),
         search: { inputs: $('optIn').checked, neurons: $('optNh').checked, ridge: $('optLam').checked, smooth: $('optSm').checked },

@@ -47,7 +47,9 @@
             const what = /^(nan|na|n\/a|null|none|-|\?)$/i.test(p) ? 'a missing value' : 'not a number';
             return { error: `${label}: line ${li + 1}, value "${p}" is ${what}. Remove it or replace it with a number (missing values are not filled in automatically).` };
           }
-          values.push(parseFloat(q));
+          const x = parseFloat(q);
+          if (!Number.isFinite(x)) return { error: `${label}: line ${li + 1}, value "${p}" is too large to be a number here.` };
+          values.push(x);
           if (maxN && values.length > maxN) return { error: `${label}: more than ${maxN.toLocaleString('en')} values. Keep ${/forecast/i.test(label) ? 'the first' : 'the last'} ${maxN.toLocaleString('en')}${maxN < 50000 ? ', or send the series as a job file or link (up to 50,000 values)' : ''}, or use FrugalCast Local (no fixed limit).` };
         }
       }
@@ -247,9 +249,10 @@
     const nonneg = train.every(v => v >= 0);
     return { S, Ntr, N, cfg, nonneg, T: cfg.T };
   };
-  E.inputOptions = function (T) { // 0.5, 1, 1.5, 2 periods
-    if (T < 8) return [1, 2, 4, 8];
-    return [0.5, 1, 1.5, 2].map(k => Math.max(1, Math.round(k * T)));
+  E.inputOptions = function (T) { // 1/4, 1/2, 3/4 and all of M past values (engine 1.1.0): M = min(2 periods, 500), i.e. 0.5, 1, 1.5, 2 periods while 2T <= 500;
+    // without a period (or T < 8), M = 32: 8, 16, 24, 32 lags (1.0.0 used 1, 2, 4, 8, too short a memory)
+    const M = T < 8 ? 32 : Math.min(2 * T, 500);
+    return [0.25, 0.5, 0.75, 1].map(k => Math.max(1, Math.round(k * M)));
   };
   /* issue times: learning samples (target inside the learning series) and forecast samples (target in the forecast series).
      t0 leaves room for the longest input window and for one cycle, so that every model is scored on the same samples. */
@@ -967,6 +970,7 @@
     if (!best) throw new Error('No finite candidate for ' + m.name + '.');
     const f = m.fit(ctx, h, tr, { LB: best.LB, _trTs: tr });
     const chosen = { inputs: best.LB }; if (f.theta !== undefined) chosen.theta = +(+f.theta).toFixed(4);
+    if (ctx.cfg.pca && f.state && f.state.row && f.state.row.P) chosen['PCA components'] = f.state.row.k; // K of the 95 % PCA, shown next to the lags
     return { tried: lbs.length > 1 ? tried : [], pred: smp.te.map(t => clip(f(t))), resid: best.resid, chosen, cv: best.cv, cvFolds: best.cvFolds, fittedState: f.state, nparams: best.LB + 1 + timeFeat(ctx, 0).length };
   }
 
@@ -1052,7 +1056,7 @@
     const xTest = designRows(row, smp.te, LB, true), testHidden = hidden(xTest, layer, activation, nMax);
     const pred = smp.te.map((_, row) => clip(predict(testHidden, row)));
     const settings = params.ridge === 'gcv' ? { 'ridge λ (GCV)': +predict.lambda.toPrecision(3) } : params;
-    return { tried: tried.length > 1 ? tried : [], pred, resid, cv, cvFolds: best.cvFolds, chosen: { inputs: LB, neurons: n, ...settings, candidate },
+    return { tried: tried.length > 1 ? tried : [], pred, resid, cv, cvFolds: best.cvFolds, chosen: { inputs: LB, ...(ctx.cfg.pca && row.state && row.state.P ? { 'PCA components': row.k } : {}), neurons: n, ...settings, candidate },
       nparams: n * (x[0].length + 2), fittedState: { row: row.state, layer, n, nMax, fit: predict.state } };
   }
 

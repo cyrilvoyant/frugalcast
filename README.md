@@ -20,9 +20,19 @@
 
 ## Data rules
 
-1. No gap: one value per time step, night included.
+1. No gap: one value per time step, night included. A measurement is missing: put a number (0, the previous value or a mean), so that the line still exists.
 2. No missing value: no NaN, NA or empty line.
-3. Start exactly at the beginning of a period, for instance 00:00 for hourly data with a daily cycle. The forecast series follows the learning series directly.
+3. Right start: the learning series begins at the start of a period (hourly data with a daily cycle: the 00:00 hour, in the clock you chose); the series to forecast continues it from the very next step.
+
+A data check appears under each box as soon as data are pasted. Each line may start with its date (`2026-06-01T10:00;412.5`): only the values go to the models, and the dates let the page also check rules 1 and 3.
+
+## What is new in 1.1.0
+
+- Inputs: 1/4, 1/2, 3/4 or all of M past values, with M = min(2 periods, 500); without a period, M = 32 (8 to 32 lags instead of 1 to 8). Series with a period of up to 250 steps give the same numbers as 1.0.0.
+- Optional date column and a data check under each box; empty lines and non-finite values are refused with their line number.
+- Models that need a period cannot be chosen when the series has none.
+- New examples: GTI Ajaccio (5 min), PV production Alice Springs (5 min, DKASC), monthly sunspot number (SILSO), daily euro exchange rate (ECB), daily US 10-year Treasury yield (Federal Reserve); EDF Corsica on a regular UTC grid.
+- Folds explained on the page and in the fold table; a reminder of the data rules before each run.
 
 ## FrugalCast Local (in preparation, not available yet)
 
@@ -37,6 +47,6 @@ The kit and programmatic access (API) are not available for now. To be told when
 
 Free for research, teaching and any other non-commercial use: code under [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/), texts under CC BY-NC 4.0 (see `LICENSE.md`). Please cite:
 
-> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.0.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
+> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.1.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
 
-Example data: hourly GHI in Kragujevac (Serbia), which contains modified Copernicus Atmosphere Monitoring Service information, 2026; EDF SEI open data, Corsica.
+Example data: hourly GHI in Kragujevac (Serbia), which contains modified Copernicus Atmosphere Monitoring Service information, 2026; EDF SEI open data, Corsica; GTI, Ajaccio; PV production, Alice Springs, from the [DimRed data set](https://stac.webservice-energy.org/collections/dimred) (Webservice-Energy STAC catalog, MINES Paris PSL), quality-checked data from the Desert Knowledge Australia Solar Centre; monthly sunspot number, WDC-SILSO, Royal Observatory of Belgium, Brussels (CC BY-NC 4.0); daily euro exchange rate, source: ECB statistics; daily US 10-year Treasury yield, source: Board of Governors of the Federal Reserve System (H.15) and U.S. Treasury.

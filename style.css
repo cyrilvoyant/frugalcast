@@ -188,6 +188,11 @@ body.dropping::after{content:"Drop the .json job here";position:fixed;inset:12px
   display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:600;color:var(--p2);z-index:50;pointer-events:none}
 #citeDlg{max-width:620px;border:1px solid var(--line);border-radius:14px;padding:26px 30px;box-shadow:0 20px 60px rgba(23,37,54,.25);color:var(--ink)}
 #citeDlg::backdrop{background:rgba(23,37,54,.45)}
+#rulesDlg{max-width:620px;border:1px solid var(--line);border-radius:14px;padding:26px 30px;box-shadow:0 20px 60px rgba(23,37,54,.25);color:var(--ink)}
+#rulesDlg::backdrop{background:rgba(23,37,54,.45)}
+#rulesDlg h2{margin:0 0 10px;font-size:1.35rem;color:var(--p2)}
+#rulesDlg ol{padding-left:1.2em;margin:8px 0 12px}#rulesDlg li{margin:4px 0}
+#rulesDlg .row{display:flex;gap:8px;align-items:center;margin-top:14px}#rulesDlg .sp{flex:1}
 #citeDlg h2{margin:0 0 10px;font-size:1.35rem;color:var(--p2)}
 #citeDlg .cite{background:var(--soft);border-left:4px solid var(--p2);padding:10px 14px;border-radius:6px;font-size:.95rem}
 #citeDlg .row{display:flex;gap:8px;align-items:center;margin-top:14px}
@@ -219,3 +224,4 @@ body.dropping::after{content:"Drop the .json job here";position:fixed;inset:12px
 .hero.has-video svg.deco{position:static;display:block;width:100%;height:auto;aspect-ratio:520/300;margin:-10px 0 -30px}
 .hero.has-video .vthumb{margin:6px 0 0;max-width:none}}
 
+.qc{margin:.4rem 0 0;padding:.45rem .6rem;border:1px solid var(--line);border-left:4px solid #2e7d4f;border-radius:6px;background:var(--paper);font-size:.85rem}.qc.bad{border-left-color:#b3261e}.qc .ok{color:#2e7d4f}.qc .ko{color:#b3261e}.qc .info{color:var(--muted)}

@@ -37,6 +37,7 @@ Settings-only link (no data; the user pastes the series or clicks "Try it with t
 ## Protocol (fixed, identical for all models)
 
 - Issue time t, inputs = last values (standardized with the learning series; optional PCA keeping 95 % of variance) + sin/cos of the target phase when the series has a period; target = value h steps later (h = 1 to 100).
+- Inputs of the AR, ARMA and ELMs: 1/4, 1/2, 3/4 or all of M past values, chosen by cross-validation, with M = min(2 periods, 500) (0.5, 1, 1.5 or 2 periods while 2 periods <= 500), or M = 32 without a period or when the period is under 8 steps (8, 16, 24 or 32 lags).
 - Settings chosen by expanding-window temporal cross-validation on the learning series (5 blocks, 4 folds), then refitted on the whole learning series. A forecast uses observations available at its issue time.
 - For solar data, preserve every time step. Positive observed targets can be selected for scoring. With the solar option, forecasts are written as 0 where the observation is 0 (not causal, retrospective view); in real use the night filtering is the user's job. Scores on positive observed targets do not depend on this rule.
 - Every model has non-parametric conformal-style intervals: asymmetric by default, using separate conformal ranks of signed out-of-sample validation errors. Set interval.mode to "symmetric" for forecast ± a conformal-rank quantile of absolute errors; saved jobs record the mode explicitly. Gaussian intervals are a separate parametric option. Calibration pools the temporal cross-validation errors of folds 2 to 4 (the first fold, fitted on one fifth of the learning series only, is left out); settings selection uses all folds. Climatology always gets one global interval. This is neither the CV+ algorithm nor a separate split-conformal calibration block, and there is no formal coverage guarantee for dependent time series. Small phase groups fall back to global errors; unachievable global ranks yield explicit unbounded outputs. Bounds, centiles, PIT and approximate CRPS share the same distribution.
@@ -69,7 +70,7 @@ Free for research, teaching and any non-commercial use, provided the tool is cit
 
 ## Cite
 
-- The tool: Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.0.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
+- The tool: Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.1.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
 - Benchmarks (PER, CLIM, CLIPER, ES, ARTU): Voyant et al. (2022), Renewable Energy 191, 747–762, https://doi.org/10.1016/j.renene.2022.04.065
 - NICE^k metrics: Voyant et al. (2025), Sustainable Energy Technologies and Assessments 83, 104588, https://doi.org/10.1016/j.seta.2025.104588
 - BLEND and periodically correlated processes: Voyant et al. (2026), Applied Mathematical Modelling 157, 116988, https://doi.org/10.1016/j.apm.2026.116988
@@ -84,11 +85,16 @@ Free for research, teaching and any non-commercial use, provided the tool is cit
 
 A learning and comparison tool, not investment or operational advice. Levels of trending series (prices) cannot be extrapolated by models fitted on levels; persistence is then hard to beat (NICE ≈ 1).
 
+## Examples on the page
+
+Each one loads its series, its period and its solar setting (your other settings are kept): hourly GHI, Kragujevac (Serbia), CAMS (modified Copernicus Atmosphere Monitoring Service information, 2026); GTI, Ajaccio, 5 min; PV production, Alice Springs, 5 min, from the DimRed data set (https://stac.webservice-energy.org/collections/dimred, Webservice-Energy STAC catalog, MINES Paris PSL; quality-checked data from the Desert Knowledge Australia Solar Centre); hourly electricity production, Corsica, EDF SEI open data; monthly sunspot number since 1749, period 132 months (WDC-SILSO, Royal Observatory of Belgium, Brussels, CC BY-NC 4.0); daily euro exchange rate since 1999 (source: ECB statistics); daily US 10-year Treasury yield since 2000 (Board of Governors of the Federal Reserve System, H.15; U.S. Treasury). The two financial series show that persistence is hard to beat on prices and rates.
+
 ## Data rules
 
-- No gap: one value per time step, night included, same step everywhere.
-- No missing value: no NaN, NA or empty line.
-- The learning series starts exactly at the beginning of a period (for hourly data with a daily cycle, the first hour of a day), so the phase is right for the cyclic models, time inputs and per-phase intervals. The forecast series follows the learning series directly.
+- No gap: one value per time step, night included, same step everywhere. A measurement is missing: put a number (0, the previous value or a mean), so that the line still exists.
+- No missing value: no NaN, NA or empty line (the page refuses them and says which line).
+- Right start: the learning series begins at the start of a period (hourly data with a daily cycle: the 00:00 hour, in the clock chosen), so the phase is right for the cyclic models, time inputs and per-phase intervals; the series to forecast continues it from the very next step.
+- Optional date column: each pasted line may start with its date, "date;value" or date<TAB>value (ISO 8601: 2026-06-01T10:00, with or without offset, 2026-06-01, or 2026-06 for months). Only the values go to the models; the dates let the page check the order, duplicates, gaps, the start of the period and the continuity between the two series. A data check (passed or what to fix) appears under each box as soon as data are pasted.
 
 Unbounded results: JSON exports use the strings "Infinity" and "-Infinity", with explanatory score notes and interval metadata; CSV preserves Infinity/-Infinity. Do not interpret these values as finite margins or missing data.
 
