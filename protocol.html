@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FrugalCast protocol: how models are fitted, compared and scored</title>
+<meta name="description" content="The exact protocol of FrugalCast: learning and test series, samples, purged expanding-window cross-validation, intervals, night rules for solar data, metrics, NICE, Wilcoxon test, reproducibility, known limits and version history.">
+<link rel="canonical" href="https://frugalcast.cyrilvoyant.com/protocol.html">
+<link rel="author" href="https://orcid.org/0000-0003-0242-7377">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%2307569a%27/%3E%3Cpath d=%27M4 22 C9 21 10 11 15 12 S21 23 28 9%27 stroke=%27%23fff%27 stroke-width=%273%27 fill=%27none%27 stroke-linecap=%27round%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css?v=1.4.0">
+<style>
+  .doc{max-width:860px;margin:0 auto;padding:1.2rem 16px 3rem;line-height:1.6}
+  .doc h1{margin:.6rem 0 .3rem}.doc h2{margin-top:2.2rem;padding-top:.6rem;border-top:1px solid var(--line)}
+  .doc h3{margin-top:1.4rem}
+  .doc .eq{font-family:Cambria,'Times New Roman',serif;font-size:1.06rem;background:var(--soft);border-radius:8px;padding:.5rem .8rem;margin:.5rem 0;overflow-x:auto}
+  .doc table{border-collapse:collapse;width:100%;margin:.6rem 0;font-size:.93rem}
+  .doc th,.doc td{border:1px solid var(--line);padding:.35rem .55rem;text-align:left;vertical-align:top}
+  .doc code{background:var(--soft);padding:0 .25rem;border-radius:4px}
+  .doc nav.toc{display:flex;flex-wrap:wrap;gap:.25rem 1rem;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:.6rem 1rem;margin:1rem 0}
+  .doc nav.toc a{white-space:nowrap}
+  .doc .back{display:inline-block;margin-top:.4rem}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="wrap">
+  <strong>FrugalCast</strong><span class="motto">by Cyril Voyant · Mines Paris – PSL</span>
+  <nav><a href="./">Back to the benchmark</a><a href="#protocol">Protocol</a><a href="#limits">Known limits</a><a href="#versions">Versions</a></nav>
+</div></div>
+
+<main class="doc">
+<h1>Protocol</h1>
+<p>What FrugalCast does, step by step, as written in <a href="engine.js">engine.js</a>. Every model goes through the same steps, so that the comparison is fair. Engine 1.4.0.</p>
+<nav class="toc"><a href="#data">1 Data</a><a href="#samples">2 Samples</a><a href="#cv">3 Settings</a><a href="#intervals">4 Intervals</a><a href="#night">5 Night</a><a href="#metrics">6 Metrics</a><a href="#nice">7 NICE</a><a href="#wilcoxon">8 Wilcoxon</a><a href="#repro">9 Reproducibility</a><a href="#limits">Known limits</a><a href="#versions">Versions</a></nav>
+
+<h2 id="protocol"><span id="data"></span>1. Data: two series, one after the other</h2>
+<ul>
+<li>The <b>learning series</b> is used to fit the models and to choose their settings. The <b>series to forecast</b> (the test) comes right after it in time and starts at the same phase of the period (the same hour of the day for hourly data). It can also be taken later, for instance one year after (box “It was taken later”): see the samples below.</li>
+<li>The test values are never used to fit or tune anything. A test value serves only as an input for the forecasts issued after it, as in real use, where the last observation is known when the next forecast is made.</li>
+<li>Steps must be regular. With dates, missing steps can be filled before the run (previous value or mean of the neighbours); the page says how many.</li>
+<li>Optional preparation, computed on the learning series only: centring, standardisation, or removal of the mean profile (mean of each phase). Forecasts are put back in the units of the series. Persistence and climatology, the references, always use the series as it is.</li>
+</ul>
+
+<h2 id="samples">2. Samples</h2>
+<p>A sample is an issue time <i>t</i>. Its inputs are the last <i>LB</i> values up to <i>t</i>, its target is the value at <i>t</i> + <i>h</i> (horizon <i>h</i> steps):</p>
+<div class="eq">inputs: S<sub>t−LB+1</sub>, …, S<sub>t</sub> &nbsp;&nbsp;→&nbsp;&nbsp; target: S<sub>t+h</sub></div>
+<ul>
+<li>Input sizes tried: 1/10, 1/4, 1/2 and all of one period <i>T</i>, capped at 500 values (for <i>T</i> = 288: 29, 72, 144, 288). Without a period: 3, 8, 16, 32.</li>
+<li>Lag inputs are standardised with the mean and standard deviation of the learning rows. Clock inputs: sine and cosine of the phase of the target (hour of the day), and on request of the day of the week and of the day of the year.</li>
+<li>Learning samples start after the longest input window (and at least 48 values, for the exponential smoothing), so that every model learns on the same targets. Every model is scored on the same test targets.</li>
+<li>When the series to forecast follows the learning series, the first forecast is issued at the last learning value: its inputs are the end of the learning series, as in real use. When it was <b>taken later</b>, the first forecast waits for a whole input window inside the series to forecast, so no input comes from the learning series; the series to forecast must then be longer than the inputs, and the day of the week and of the year cannot be used.</li>
+</ul>
+
+<h2 id="cv">3. Choice of the settings: purged expanding-window cross-validation</h2>
+<ul>
+<li>The learning samples are cut into 5 blocks in time order. Fold <i>k</i> (<i>k</i> = 1 to 4) fits on everything before block <i>k</i> + 1 and validates on block <i>k</i> + 1: the window grows, the future is never used to predict the past.</li>
+<li><b>Purge</b>: a fit sample is kept only if its target <i>t</i> + <i>h</i> comes strictly before the first validation issue time, so no target of the fit overlaps the validation period.</li>
+<li>For each candidate setting (input size, hidden neurons, ridge λ, smoothing, …), the validation RMSE of each fold is computed and averaged over the folds. The setting with the lowest mean is kept, then the model is refitted on the whole learning series.</li>
+<li>Extreme learning machines: the hidden layer is random (weights uniform in [−1, 1], biases in [0, 1], seeded generator). Each ELM keeps the best of 5 random hidden layers, by the same validation error.</li>
+</ul>
+
+<h2 id="intervals">4. Prediction intervals</h2>
+<ul>
+<li>Built from the out-of-fold errors of folds 2 to 4 (the first fold, fitted on one block only, is left out), for each horizon. Conformal-style ranks: the limits are ranks of these errors, per phase of the period when there are enough errors (at least 20), otherwise global. Climatology always gets one global interval.</li>
+<li>Asymmetric by default: the lower and upper limits come from the signed errors. The 99 centiles of the same errors give the PIT, the calibration plot and the CRPS.</li>
+<li>These are temporal out-of-fold errors, not exchangeable data: no coverage guarantee is claimed. The coverage actually obtained on the test is reported (PICP) next to the target coverage.</li>
+</ul>
+
+<h2 id="night">5. Night for solar series (GHI, GTI, PV)</h2>
+<table>
+<tr><th>Night from</th><th>What it does</th><th>Causal?</th></tr>
+<tr><td><b>sun position</b> (latitude, longitude, time of the first learning value in UTC, and of the first value to forecast when it was taken later, time stamp convention)</td><td>Night = sun below the horizon at the start, the centre and the end of the step. There, the forecast, its limits and its centiles are 0. Daytime = sun higher than 5° at the centre of the step. Sun position from the U.S. Naval Observatory approximate formulas, within 0.006° of the NREL SPA (pvlib).</td><td>Yes: known in advance, as in real use.</td></tr>
+<tr><td><b>observed zeros</b></td><td>Where the observed value is 0, the forecast and its limits are written as 0.</td><td>No: it uses the observation. A retrospective view only.</td></tr>
+<tr><td><b>no night rule</b></td><td>Forecasts are kept as computed at night. No coordinates are needed.</td><td>Yes.</td></tr>
+</table>
+<p>Scores on <b>daytime targets</b> (sun above 5°, or observed value above 0 without the sun position) are the usual choice for solar data: night values are easy (0) and would make every model look better than it is. The page warns when more than 1 % of the learning values are above 0 while the sun is below the horizon: the coordinates, the time or the stamp convention are then probably wrong.</p>
+
+<h2 id="metrics">6. Metrics</h2>
+<p>On the <i>n</i> scored targets y<sub>i</sub>, forecasts ŷ<sub>i</sub>, persistence forecasts p<sub>i</sub> = y at the issue time, interval [l<sub>i</sub>, u<sub>i</sub>] at levels q<sub>lo</sub> and q<sub>hi</sub>:</p>
+<div class="eq">RMSE = √( (1/n) Σ (y<sub>i</sub> − ŷ<sub>i</sub>)² ) &nbsp;&nbsp; MAE = (1/n) Σ |y<sub>i</sub> − ŷ<sub>i</sub>| &nbsp;&nbsp; MBE = (1/n) Σ (ŷ<sub>i</sub> − y<sub>i</sub>)</div>
+<div class="eq">nRMSE = RMSE / D, &nbsp; D = mean of the scored y (or their standard deviation when the mean is not positive, or 1 for “none”)</div>
+<div class="eq">PICP = share of y<sub>i</sub> in [l<sub>i</sub>, u<sub>i</sub>] &nbsp;&nbsp; ACE = PICP − (q<sub>hi</sub> − q<sub>lo</sub>) &nbsp;&nbsp; MIL = (1/n) Σ (u<sub>i</sub> − l<sub>i</sub>)</div>
+<div class="eq">Winkler = (1/n) Σ [ (u<sub>i</sub> − l<sub>i</sub>) + (l<sub>i</sub> − y<sub>i</sub>)/q<sub>lo</sub> if y<sub>i</sub> &lt; l<sub>i</sub> + (y<sub>i</sub> − u<sub>i</sub>)/(1 − q<sub>hi</sub>) if y<sub>i</sub> &gt; u<sub>i</sub> ]</div>
+<div class="eq">CRPS ≈ (1/n) Σ (2/99) Σ<sub>k=1..99</sub> ρ<sub>k/100</sub>(y<sub>i</sub> − c<sub>i,k</sub>), &nbsp; ρ<sub>τ</sub>(u) = u (τ − 1<sub>u&lt;0</sub>), &nbsp; c<sub>i,k</sub> = centile k</div>
+<p>Normalised errors are fractions (0.42), not percentages, and they can exceed 1. R² and Pearson's r are also given.</p>
+
+<h2 id="nice">7. NICE: compared with persistence</h2>
+<div class="eq">NICE<sup>k</sup> = ( (1/n) Σ |y<sub>i</sub> − ŷ<sub>i</sub>|<sup>k</sup> )<sup>1/k</sup> / ( (1/n) Σ |y<sub>i</sub> − p<sub>i</sub>|<sup>k</sup> )<sup>1/k</sup>, &nbsp; k = 1, 2, 3; &nbsp; NICE<sup>Σ</sup> = (NICE¹ + NICE² + NICE³) / 3</div>
+<p>NICE below 1: the model does better than persistence (repeating the last value). NICE of 1 or more is shown in red with an asterisk: the model is not reliable on this series. Reference: Voyant et al., NICE, 2025 (see the references on the main page).</p>
+
+<h2 id="wilcoxon">8. Are two models really different? Wilcoxon signed-rank test</h2>
+<ul>
+<li>On demand, under the score table, for every pair of ticked models, on the same scored targets.</li>
+<li>For each target: d<sub>i</sub> = |error of model A| − |error of model B|. Zero differences are dropped, the |d<sub>i</sub>| are ranked (average ranks for ties) and W<sup>+</sup> is the sum of the ranks of the positive d<sub>i</sub>. Two-sided test, normal approximation with tie and continuity corrections (Wilcoxon, 1945), from 20 nonzero differences. Checked against <code>scipy.stats.wilcoxon</code>.</li>
+</ul>
+<div class="eq">z = ( |W<sup>+</sup> − n(n+1)/4| − 0.5 ) / √( n(n+1)(2n+1)/24 − Σ(t³ − t)/48 ), &nbsp;&nbsp; p = 2 (1 − Φ(z))</div>
+<p><b>The p-value</b> is the probability of seeing a difference at least this large if the two models were in fact equally accurate. Below 0.05, the difference is called significant at the 5 % level. Above, the data do not show a difference, which does not prove the models equal. The p-value says nothing about the size of the gain. The test looks at the typical error, while RMSE is driven by the largest errors: on the Alice Springs example at h = 1, ARTU and ARMA have close RMSE (538 and 549 W), but ARTU is closer to the observation on 68 % of the 688 daytime targets (median absolute error 94 W against 214 W), so p &lt; 0.001. Successive errors of a time series are correlated, so the test is optimistic (the true p-value is larger). With many pairs, a few p-values fall below 0.05 by chance: about 5 % of the pairs when all models are equal.</p>
+
+<h2 id="repro">9. Reproducibility</h2>
+<ul>
+<li>Deterministic: the random draws come from a seeded generator (seed 42). The same series, the same settings and the same engine give the same numbers, in any browser and in FrugalCast Local.</li>
+<li>The JSON export holds every setting, the SHA-256 of the engine and of both series, all the Wilcoxon pairs and the BibTeX references. FrugalCast Local writes a <code>manifest.json</code> with the SHA-256 of the inputs and of every output file, and checks a results folder with <code>verify</code>.</li>
+<li>Your data never leave your browser: everything is computed on your computer.</li>
+</ul>
+
+<h2 id="limits">Known limits</h2>
+<ul>
+<li><b>Very short horizons at fine steps.</b> At 5-minute steps and one step ahead, persistence is very hard to beat: on the Alice Springs PV example no model does better (NICE ≥ 1). The benchmark shows it rather than hiding it.</li>
+<li><b>Frugal models only.</b> No exogenous data (no numerical weather prediction, no satellite, no clear-sky model): the models learn from the past of the series alone.</li>
+<li><b>Intervals without guarantee.</b> Conformal-style intervals on temporal errors have no exchangeability guarantee; check PICP against the target.</li>
+<li><b>Correlated errors.</b> The Wilcoxon p-values are optimistic, see above.</li>
+<li><b>Short test series.</b> Scores on a few days depend on the weather of those days. Prefer at least several weeks of test when the data allow it.</li>
+<li><b>Data owner limits.</b> The Alice Springs example holds 4,896 values (12 days to learn, 5 to forecast) because DKASC allows at most 5,000 without written consent.</li>
+<li><b>Browser memory and time.</b> Long series and full searches can take minutes; FrugalCast Local uses every processor core.</li>
+</ul>
+
+<h2 id="versions">Version history</h2>
+<p>Every version is archived on Zenodo; the DOI <a href="https://doi.org/10.5281/zenodo.24197717">10.5281/zenodo.24197717</a> always resolves to the latest one. Results change between versions when the protocol changes; the engine SHA-256 in each export says which version made them.</p>
+<table>
+<tr><th>Version</th><th>Date</th><th>Changes that affect the numbers</th></tr>
+<tr><td>1.4.0</td><td>2026-11</td><td>Night from the sun position for solar series (causal), or no night rule; scored daytime = sun above 5° in that mode. Wilcoxon test between models. Series to forecast taken later (for instance one year after): the first forecasts wait for a whole input window inside it; its clock is counted from its own first value. Two questions, read from the dates or confirmed by the user: same day of the year, same hour of the day. The day of the week is not used; the last learning values that do not fill a whole period are left out. Not the same hour: no period (no clock inputs, no cyclic model). Otherwise, only the matching sine/cosine inputs are kept. Provenance (SHA-256) in the JSON export. Default fixed values: 50 hidden neurons (was 500, too slow) and 1/4 of a period of inputs. Alice Springs example cut into 12 days to learn and 5 to forecast. Results of the “observed zeros” mode are unchanged.</td></tr>
+<tr><td>1.3.0</td><td>2026-11-25</td><td>Inputs: 1/10, 1/4, 1/2 or all of one period, capped at 500. Each ELM keeps the best of 5 random hidden layers (was 30). NICE ≥ 1 flagged.</td></tr>
+<tr><td>1.2.0</td><td>2026-11-25</td><td>Same phase for both series; day-of-week input (was hour in the week); annual cycle from one year of data; gap filling for dated series.</td></tr>
+<tr><td>1.1.0</td><td>2026-11-25</td><td>Larger input grid (up to two periods, 500 at most); data check with optional dates; 30 ELM draws; new examples.</td></tr>
+<tr><td>1.0.0</td><td>2026-11-13</td><td>First version: 30 frugal models with prediction intervals, in the browser.</td></tr>
+</table>
+<p><a class="back" href="./">← Back to the benchmark</a></p>
+</main>
+</body>
+</html>

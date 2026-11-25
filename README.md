@@ -22,9 +22,19 @@
 
 1. No gap: one value per time step, night included. A measurement is missing: put a number (0, the previous value or a mean), so that the line still exists.
 2. No missing value: no NaN, NA or empty line.
-3. Same phase: both series start at the same hour (the same phase of the period). The learning series holds whole periods (whole days with a daily cycle) and the series to forecast continues it from the very next step; otherwise the hour inputs (sine, cosine) are shifted and every score is wrong.
+3. Phase known: the models know the hour of a value only from its position. When the series to forecast follows the learning series from the very next step, the phase is known. Otherwise, two questions say which sine/cosine inputs are kept (see 1.4.0 below).
 
 A data check appears under each box as soon as data are pasted. Each line may start with its date (`2026-06-01T10:00;412.5`): only the values go to the models, and the dates let the page also check rules 1 and 3.
+
+## What is new in 1.4.0
+
+- Night for solar series (GHI, GTI, PV), three choices: from the **sun position** (latitude, longitude, UTC time of the first value; causal, as in real use: forecasts 0 when the sun is below the horizon over the whole step, daytime scored when the sun is above 5°), from observed zeros (retrospective, as before), or no night rule.
+- Series to forecast taken later (for instance one year after the learning series): its first forecasts wait for a whole input window inside it. Right after the learning series, all sine/cosine inputs are kept. Not right after (later, or another site): two questions, read from the dates or confirmed by you: same day of the year, and same hour of the day (daily data: same day of the week; monthly data: same month). Not the same: no period, so no clock inputs and no cyclic model. Same hour only: the sine/cosine of the period kept, not the day of the week nor of the year. Both: all kept. The last learning values that do not fill a whole period are left out. With dates, only the period buttons that match the time step are active. The data check says what is used.
+- Are two models really different? Wilcoxon signed-rank test between every pair of ticked models, on demand under the scores, with what the p-value means and does not mean.
+- The JSON export holds the SHA-256 of the engine and of both series, the Wilcoxon pairs and the BibTeX references.
+- New page [protocol.html](https://frugalcast.cyrilvoyant.com/protocol.html): the protocol with its formulas, known limits and version history.
+- Alice Springs example: 12 days to learn and 5 to forecast (was 15 and 2), same 4,896 values.
+- Results of the "observed zeros" mode and of non-solar series are unchanged.
 
 ## What is new in 1.3.0
 

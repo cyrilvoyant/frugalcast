@@ -264,8 +264,10 @@
     const t0 = Math.max(lbMax - 1, T * Math.ceil(h / Math.max(T, 1)) - h, h, 47, 0);
     const tr = [], te = [];
     for (let t = t0; t + h <= ctx.Ntr - 1; t++) tr.push(t);
-    // The last learning observation is available at the first scored issue time.
-    for (let t = Math.max(ctx.Ntr - 1, t0); t + h < ctx.N; t++) te.push(t);
+    // The last learning observation is available at the first scored issue time. With cfg.gap (the series to forecast
+    // was taken later, for instance one year after: Cyril, 2026-11-25), the first issue time leaves a whole input window
+    // inside the series to forecast, so that no input comes from the learning series.
+    for (let t = ctx.cfg && ctx.cfg.gap ? ctx.Ntr + t0 : Math.max(ctx.Ntr - 1, t0); t + h < ctx.N; t++) te.push(t);
     return { tr, te };
   };
   E.folds = function (n, k) { // expanding window, as temporal_cv_splits of elm_common.py
@@ -304,10 +306,14 @@
     const clip = cfg.clip !== false && origNonneg ? (v => Math.max(0, v)) : (v => v);
     // toOriginal(v, j): back to the units of the series for a forecast whose target is at index j
     return { S, Ntr: ntrain, N: raw.length, cfg, T: cfg.T, center, scale, prof, nonneg, origNonneg, clip,
-      toOriginal: (v, j) => clip(v * scale + level(j)) };
+      toOriginal: (v, j) => clip(v * scale + level(j)),
+      // clock position of value j: with a series to forecast taken later (cfg.gap), its values are counted from its own first value,
+      // which starts at the hour (and, with cfg.gapSameDay, on the day of the year) of the first learning value
+      pos: j => cfg.gap && j >= ntrain ? j - ntrain : j };
   }
   function timeFeat(ctx, j) {
     const T = ctx.T, c = ctx.cfg, f = [];
+    if (ctx.pos) j = ctx.pos(j);
     if (T >= 2) { const a = 2 * Math.PI * (j % T) / T; f.push(Math.sin(a), Math.cos(a)); }
     if (T < 2) return f; // non-periodic series: no time features
     if (c.weekly) { const a = 2 * Math.PI * (Math.floor(j / T) % 7) / 7; f.push(Math.sin(a), Math.cos(a)); } // day of the week, 0 to 6 from the first day (Cyril, 2026-11-25: one value per day, not the hour in the week)
@@ -561,7 +567,7 @@
         const tm = new Float64Array(Y), n = new Float64Array(Y);
         for (let j = 0; j <= end; j++) { tm[j % Y] += S[j]; n[j % Y]++; }
         annualProfile = tm.map((sum, j) => n[j] ? sum / n[j] : 0);
-        tmy = j => annualProfile[j % Y];
+        tmy = j => annualProfile[(ctx.pos ? ctx.pos(j) : j) % Y];
       }
       for (let j = 0; j < N; j++) w[j] = S[j] - tmy(j);
       const W = [], order = [];
@@ -1157,22 +1163,42 @@
     return Math.asin(Math.sin(lat * rad) * Math.sin(dec) + Math.cos(lat * rad) * Math.cos(dec) * Math.cos(H)) / rad;
   }
   E.sunElevation = sunElevation;
-  /* Not used by the page (endogenous rule, see E.run). Kept, checked against pvlib SPA (0.006 deg), for prospective use
-     with time-stamped data (local kit), where the observation is not known in advance.
+  /* Used when cfg.solar.night = 'sun' (site and local kit). Checked against pvlib SPA (0.006 deg). Causal: known in
+     advance, so it also works in prospective use, where the observation is not known.
      For each value j of the series (learning then forecast): its averaging interval [a, b] from the time stamp of the
      first learning value (UTC), the step and the stamp convention ('start', 'centre' or 'end' of the interval).
      night[j] = 1 when the sun is below the horizon at a, at the centre and at b (tool rule): known in advance, from
      astronomy only, so forecasts set to 0 there stay causal and the rule works in prospective use.
      day[j] = 1 when the elevation at the centre exceeds dayMin (degrees, 5 by default): the hours scored with "daytime". */
+  // ISO 8601 with an explicit time zone (Z or ±hh:mm) and a real calendar date (no 30 February): the time in ms, or NaN
+  function isoTime(text) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-](\d{2}):(\d{2}))$/.exec(String(text));
+    if (!m) return NaN;
+    const [y, mo, d, hh, mi, ss] = [1, 2, 3, 4, 5, 6].map(i => +(m[i] || 0)), day = new Date(Date.UTC(y, mo - 1, d));
+    if (day.getUTCFullYear() !== y || day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d || hh > 23 || mi > 59 || ss > 59) return NaN;
+    if (m[8] !== undefined && (+m[8] > 14 || +m[9] > 59)) return NaN;
+    return Date.parse(text);
+  }
+  E.isoTime = isoTime;
+  const finiteNumber = v => (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isFinite(+v);
   function solarMask(sol, N) {
-    const t0 = Date.parse(sol.start), step = sol.stepMin * 60000;
-    if (!isFinite(t0)) throw new Error('Solar series: the start time is not a date (use ISO 8601, for instance 2023-09-01T00:00Z)');
-    if (!(Math.abs(sol.lat) <= 90) || !(Math.abs(sol.lon) <= 180)) throw new Error('Solar series: latitude must be within ±90° and longitude within ±180°');
-    const off = sol.stamp === 'end' ? -step : sol.stamp === 'centre' ? -step / 2 : 0, dmin = sol.dayMin ?? 5;
+    const t0 = isoTime(sol.start);
+    if (!Number.isFinite(t0)) throw new Error('Solar series: the start time must be an ISO 8601 date with its time zone, for instance 2023-09-01T00:00Z or 2023-09-01T02:00+02:00');
+    if (!finiteNumber(sol.stepMin) || !(+sol.stepMin > 0)) throw new Error('Solar series: the time step must be a positive number of minutes');
+    if (!finiteNumber(sol.lat) || !finiteNumber(sol.lon) || Math.abs(sol.lat) > 90 || Math.abs(sol.lon) > 180) throw new Error('Solar series: latitude must be a number within ±90° and longitude a number within ±180°');
+    if (!['start', 'centre', 'end'].includes(sol.stamp)) throw new Error('Solar series: the time stamp must mark the start, the centre or the end of the step');
+    const dmin = sol.dayMin === undefined || sol.dayMin === null ? 5 : sol.dayMin;
+    if (!finiteNumber(dmin) || dmin < 0 || dmin > 90) throw new Error('Solar series: the daytime threshold must be between 0 and 90 degrees');
+    const step = +sol.stepMin * 60000, off = sol.stamp === 'end' ? -step : sol.stamp === 'centre' ? -step / 2 : 0;
+    // the step in ms must be finite and at least one second (1e308 min overflows, 1e-20 min repeats the same instants),
+    // and the last instant must stay a valid date (Codex audit 2026-11-25)
+    if (!Number.isFinite(step) || step < 1000) throw new Error('Solar series: the time step must be at least one second and finite');
+    if (!(Math.abs(t0 + (N + 1) * step) <= 8.64e15)) throw new Error('Solar series: the series ends beyond the valid range of dates');
+    sol = Object.assign({}, sol, { lat: +sol.lat, lon: +sol.lon });
     const night = new Uint8Array(N), day = new Uint8Array(N), elev = new Float64Array(N);
     for (let j = 0; j < N; j++) {
       const a = t0 + j * step + off, ea = sunElevation(a, sol.lat, sol.lon), ec = sunElevation(a + step / 2, sol.lat, sol.lon), eb = sunElevation(a + step, sol.lat, sol.lon);
-      elev[j] = ec; night[j] = ea < 0 && ec < 0 && eb < 0 ? 1 : 0; day[j] = ec > dmin ? 1 : 0;
+      elev[j] = ec; night[j] = ea < 0 && ec < 0 && eb < 0 ? 1 : 0; day[j] = ec > +dmin ? 1 : 0;
     }
     return { night, day, elev };
   }
@@ -1189,6 +1215,40 @@
     const p = (lo + hi) / 2;
     return z < 0 ? p : 1 - p;
   }
+
+  /* Wilcoxon signed-rank test, paired (Wilcoxon 1945), two-sided, on two lists of errors for the same targets.
+     d_i = |a_i| - |b_i|; zero differences dropped; |d_i| ranked, ties get their average rank; W+ = sum of the ranks of
+     positive d_i. Normal approximation with tie and continuity corrections (n >= 20 nonzero pairs, else no p-value):
+     z = (|W+ - n(n+1)/4| - 0.5) / sqrt(n(n+1)(2n+1)/24 - sum(t^3 - t)/48), p = 2 (1 - Phi(z)).
+     better: 'a' when the errors of a are smaller (W+ below its mean), 'b' otherwise. medianDiff: median of d_i (all pairs). */
+  /* erfc: power series below 2.5, continued fraction above (relative error under 1e-11 against scipy.special.erfc, z = 0 to 30) */
+  function erfc(t) {
+    if (t < 0) return 2 - erfc(-t);
+    if (t < 2.5) { let s = 0, term = t, n = 0; do { s += term / (2 * n + 1); n++; term *= -t * t / n; } while (Math.abs(term) > 1e-17 * Math.abs(s) && n < 200); return 1 - 2 / Math.sqrt(Math.PI) * s; }
+    let f = t; for (let k = 120; k >= 1; k--) f = t + (k / 2) / f;
+    return Math.exp(-t * t) / Math.sqrt(Math.PI) / f;
+  }
+  E.erfc = erfc;
+  function wilcoxon(a, b) {
+    if (a.length !== b.length) throw new Error('Wilcoxon test: the two lists of errors must have the same length (the same targets).');
+    const pairs = a.map((v, i) => Math.abs(v) - Math.abs(b[i])), all = pairs.filter(Number.isFinite), excluded = pairs.length - all.length;
+    const d = all.filter(v => v !== 0), n = d.length;
+    const sorted = all.slice().sort((x, y) => x - y), medianDiff = sorted.length ? (sorted[(sorted.length - 1) >> 1] + sorted[sorted.length >> 1]) / 2 : NaN;
+    const out = { n, zeros: all.length - n, excluded, medianDiff, wPlus: NaN, z: NaN, p: NaN, better: null }; // excluded: pairs with a non-finite error
+    if (n < 20) return out;
+    const idx = d.map((v, i) => i).sort((i, j) => Math.abs(d[i]) - Math.abs(d[j])), rank = new Float64Array(n);
+    let ties = 0;
+    for (let k = 0; k < n;) {
+      let e = k; while (e + 1 < n && Math.abs(d[idx[e + 1]]) === Math.abs(d[idx[k]])) e++;
+      const r = (k + e + 2) / 2, t = e - k + 1; for (let q = k; q <= e; q++) rank[idx[q]] = r;
+      ties += t * t * t - t; k = e + 1;
+    }
+    let wPlus = 0; for (let i = 0; i < n; i++) if (d[i] > 0) wPlus += rank[i];
+    const mu = n * (n + 1) / 4, sd = Math.sqrt(n * (n + 1) * (2 * n + 1) / 24 - ties / 48);
+    const z = sd > 0 ? Math.max(0, Math.abs(wPlus - mu) - 0.5) / sd : 0;
+    return Object.assign(out, { wPlus, z: wPlus < mu ? -z : z, p: Math.min(1, erfc(z / Math.SQRT2)), better: wPlus < mu ? 'a' : wPlus > mu ? 'b' : null });
+  }
+  E.wilcoxon = wilcoxon;
 
   // Czado, Gneiting and Held (2009): distribute mass uniformly across [F(y-), F(y)].
   const pitSpan = (y, bd, i) => bd.pitSpan(y, i);
@@ -1263,21 +1323,56 @@
   E.run = function (job, hooks) {
     hooks = hooks || {};
     const cfg = job.cfg;
+    // not right after (cfg.gap): the series to forecast starts at the hour of the first learning value, so the learning series
+    // ends on whole periods; its last (length mod T) values are not used (Cyril 2026-11-25: no whole-periods rule for the user)
+    const gapTrim = cfg.gap && cfg.T >= 2 ? job.train.length % cfg.T : 0;
+    if (gapTrim) job = Object.assign({}, job, { train: job.train.slice(0, job.train.length - gapTrim) });
     const Sorig = Float64Array.from(job.train.concat(job.test));
     const ctx = preparedContext(Sorig, job.train.length, cfg);
     const { center: m0, scale: s0, origNonneg, clip: clipO } = ctx;
     cfg.lbOpts = cfg.lbOpts || E.inputOptions(cfg.T);
     const clip = (cfg.clip !== false && ctx.nonneg) ? (v => (v < 0 ? 0 : v)) : (v => v);
     const out = { horizons: [], skipped: [], nonneg: origNonneg, prep: { mean: m0, sd: s0, profile: ctx.prof ? Array.from(ctx.prof) : undefined } };
+    if (gapTrim) out.gapTrim = gapTrim;
+    if (cfg.gap && cfg.weekly && cfg.gapSameDay !== true) throw new Error('The series to forecast does not follow the learning series: the day of the week is used only when both series start on the same day of the year and at the same hour (untick “weekly”).');
+    if (cfg.gap && cfg.annual && cfg.gapSameDay !== true) throw new Error('The series to forecast was taken later: the day of the year can be used only when both series start on the same day of the year and at the same hour (confirm it, or untick “annual”).');
     let sol = null;
     if (cfg.solar) {
       if (!origNonneg || job.test.some(v => v < 0)) throw new Error('Solar series: learning and test values must be nonnegative before centring or scaling. Correct the source data or untick Solar series.');
-      sol = { scoreOn: cfg.solar.scoreOn || 'day', cvOn: cfg.solar.cvOn || 'all' };
+      sol = { scoreOn: cfg.solar.scoreOn || 'day', cvOn: cfg.solar.cvOn || 'all', night: ['sun', 'none'].includes(cfg.solar.night) ? cfg.solar.night : 'observed' };
       const z = job.train.filter(v => v === 0).length;
+      if (sol.night === 'sun') {
+        // night from the sun position (latitude, longitude, time of the first learning value, step, stamp convention):
+        // causal; night = sun below the horizon over the whole step, daytime = elevation above dayMin at the centre
+        const c = cfg.solar, stepMin = c.stepMin === undefined || c.stepMin === null ? (cfg.T >= 2 && 1440 % cfg.T === 0 ? 1440 / cfg.T : NaN) : c.stepMin;
+        if (!(stepMin > 0)) throw new Error('Sun position: give the time step (minutes), or a period T that divides one day (24 for hourly, 288 for 5-min steps).');
+        const at = (start, n) => solarMask({ start, stepMin, stamp: c.stamp === undefined ? 'start' : c.stamp, lat: c.lat, lon: c.lon, dayMin: c.dayMin }, n);
+        if (cfg.gap && !c.startTest) throw new Error('Sun position: the series to forecast does not follow the learning series, so give the time of its first value too.');
+        if (cfg.gap) { // two clocks: the learning series from c.start, the series to forecast from c.startTest
+          const a = at(c.start, job.train.length), b = at(c.startTest, job.test.length), cat = (x, y) => { const z = new x.constructor(x.length + y.length); z.set(x); z.set(y, x.length); return z; };
+          if (cfg.T >= 2) { // same phase: the two starts are a whole number of periods apart
+            const P = cfg.T * stepMin * 60000, off = Date.parse(c.startTest) - Date.parse(c.start), rem = ((off % P) + P) % P;
+            if (!Number.isFinite(off)) throw new Error('Sun position: the times of the first learning value and of the first value to forecast must be valid ISO 8601 times.');
+            if (Math.min(rem, P - rem) > 500) throw new Error(`Same phase: the series to forecast must start at the same phase of the period as the learning series (the same hour for hourly data with a daily cycle). Its first time is ${Math.round(rem / 60000)} min after a whole number of periods from the first learning time.`);
+          }
+          if (cfg.annual) { const md = t => new Date(Date.parse(t)).toISOString().slice(5, 19).replace('T', ' ');
+            if (md(c.start) !== md(c.startTest)) throw new Error(`Same day: with “annual”, a series to forecast taken later must start on the same day of the year and at the same hour (UTC) as the learning series. Learning: ${md(c.start)}, to forecast: ${md(c.startTest)} (month-day hour). Untick “annual”.`); }
+          sol.mask = { night: cat(a.night, b.night), day: cat(a.day, b.day), elev: cat(a.elev, b.elev) };
+        } else sol.mask = at(c.start, Sorig.length);
+        const nightLearn = sol.mask.night.subarray(0, job.train.length), prodNight = job.train.filter((v, j) => nightLearn[j] && v > 0).length;
+        out.solar = { rule: 'sun below the horizon over the whole step → forecast 0 (causal, astronomy only: works in prospective use); scored daytime = sun elevation above ' + (c.dayMin ?? 5) + '°',
+          night: 'sun', lat: +c.lat, lon: +c.lon, start: c.start, startTest: cfg.gap ? c.startTest : undefined, stepMin, stamp: c.stamp || 'start', dayMin: c.dayMin ?? 5, scoreOn: sol.scoreOn, cvOn: sol.cvOn, zeroShareLearn: z / job.train.length,
+          nightShareLearn: nightLearn.reduce((a, b) => a + b, 0) / job.train.length, producingAtNight: prodNight,
+          warning: prodNight > 0.01 * job.train.length ? `${prodNight} learning values are above 0 while the sun is below the horizon: check the latitude, the longitude, the time of the first value (UTC) and the stamp convention.` : undefined };
+      } else if (sol.night === 'none') {
+        // no night rule (Cyril, 2026-11-25): forecasts kept as computed at every step; only the choice of the scored targets (observed > 0) applies
+        out.solar = { night: 'none', rule: 'no night rule: forecasts kept as computed at night', scoreOn: sol.scoreOn, cvOn: sol.cvOn, zeroShareLearn: z / job.train.length };
+      } else
+
       // Author's rule (2026-11-13): where the observed target is 0 (night), the forecast, its limits
       // and its centiles are written as 0. NOT causal (uses the observation): a retrospective view. In prospective use the
       // night filtering is the user's job (sun position, outside the tool). Daytime scores (observed > 0) do not depend on it.
-      out.solar = { rule: 'observed zero → forecast 0 (not causal, retrospective; night filtering is the user’s job in prospective use)', scoreOn: sol.scoreOn, cvOn: sol.cvOn, zeroShareLearn: z / job.train.length };
+      out.solar = { night: 'observed', rule: 'observed zero → forecast 0 (not causal, retrospective; night filtering is the user’s job in prospective use)', scoreOn: sol.scoreOn, cvOn: sol.cvOn, zeroShareLearn: z / job.train.length };
     }
     // which models can run on this series
     const ids = [];
@@ -1308,7 +1403,8 @@
       if (!smp.folds.length) throw new Error(`Horizon ${h}: not enough learning samples for purged cross-validation; paste a longer learning series.`);
       // solar series, cvOn 'day': validation RMSE (choice of the settings) on observed learning targets > 0 only;
       // causal, the learning targets are known when the settings are chosen; residuals for the intervals keep every target
-      smp.cvKeep = sol && sol.cvOn === 'day' ? Uint8Array.from(smp.tr, t => (Sorig[t + h] > 0 ? 1 : 0)) : null;
+      const isDay = sol && sol.mask ? (t => sol.mask.day[t]) : (t => Sorig[t] > 0); // t = index of the target in the series
+      smp.cvKeep = sol && sol.cvOn === 'day' ? Uint8Array.from(smp.tr, t => (isDay(t + h) ? 1 : 0)) : null;
       const y = smp.te.map(t => Sorig[t + h]), pers = smp.te.map(t => Sorig[t]);
       const requested = sol ? sol.cvOn : 'all';
       const eligible = smp.folds.map(({ a, b }) => {
@@ -1320,18 +1416,19 @@
       const fallback = requested === 'day' && !eligible.some(Boolean);
       if (fallback) smp.cvKeep = null;
       const folds = smp.folds.map(({ a, b }, i) => ({ total: b - a, eligible: eligible[i], n: fallback ? b - a : eligible[i] }));
-      const cvNormal = normalizer(smp.cvKeep ? job.train.filter(v => v > 0) : job.train, cfg.norm);
+      const cvNormal = normalizer(smp.cvKeep ? job.train.filter((v, j) => (sol.mask ? sol.mask.day[j] : v > 0)) : job.train, cfg.norm);
       const cvValidation = { requested, effective: fallback ? 'all' : requested, folds, used: folds.filter(f => f.n).length,
         warning: fallback ? 'No validation targets above zero. Settings were chosen using all validation targets.' : undefined,
         normalization: { method: cvNormal.method, denominator: cvNormal.value }, normalizationNote: cvNormal.note };
       const H = { h, t: smp.te.map(t => t + h - ctx.Ntr), y, models: {}, cvValidation };
-      const pick = sol && sol.scoreOn === 'day' ? y.map((v, i) => (v > 0 ? i : -1)).filter(i => i >= 0) : null;
+      const pick = sol && sol.scoreOn === 'day' ? smp.te.map((t, i) => (isDay(t + h) ? i : -1)).filter(i => i >= 0) : null;
       const sub = a => pick ? pick.map(i => a[i]) : a;
+      H.scored = pick; // indices of the scored targets (null = all): the same targets for the paired tests (E.wilcoxon)
       const selectBand = bd => pick ? {
         lo: sub(bd.lo), hi: sub(bd.hi), cq: (j, k) => bd.cq(pick[j], k),
         pitSpan: (v, j) => bd.pitSpan(v, pick[j]), notes: bd.notes,
       } : bd;
-      const night = sol ? Uint8Array.from(y, v => (v === 0 ? 1 : 0)) : null;
+      const night = !sol || sol.night === 'none' ? null : sol.mask ? Uint8Array.from(smp.te, t => sol.mask.night[t + h]) : Uint8Array.from(y, v => (v === 0 ? 1 : 0));
       // the persistence reference follows the same rule, so that NICE compares like with like on every hour
       const persAll = night ? pers.map((v, i) => (night[i] ? 0 : v)) : pers;
       const sy = sub(y), sp = sub(persAll);

@@ -22,7 +22,7 @@ Page address (provisional): `https://frugalcast.cyrilvoyant.com/`
   "horizon": 1,
   "models": ["cliper", "artu", "arma", "elm"],
   "search": { "inputs": false, "neurons": false, "ridge": false, "smooth": true },
-  "fixed": { "inputs": 24, "neurons": 500, "ridge": 1e-6, "activation": "sigmoid" },
+  "fixed": { "inputs": 6, "neurons": 50, "ridge": 1e-6, "activation": "sigmoid" },
   "pca": false,
   "interval": { "kind": "conformal", "coverage": 80 },
   "prep": "none",
@@ -134,7 +134,7 @@ The page is meant to be used by a person, with up to 50,000 values in a job. For
 
 The tool is free for research, teaching and any non-commercial use, provided you cite it:
 
-> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.3.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
+> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.4.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
 
 Cite the papers of the models you use as well. After a job opened from a file or a link, the page offers a `.bib` file with the papers of the four models.
 

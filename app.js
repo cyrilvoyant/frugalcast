@@ -169,6 +169,10 @@
         for (let i = 1; i < t.length; i++) { const x = t[i] - t[i - 1]; if (x > 0) cnt.set(x, (cnt.get(x) || 0) + 1); }
         const step = [...cnt].sort((a, b) => b[1] - a[1])[0]?.[0];
         for (let i = 1; i < t.length; i++) { const x = t[i] - t[i - 1]; if (x <= 0) bad.push(D.dates[i].line); else if (x % step) odd.push(D.dates[i].line); else if (x > step) gaps.push(i - 1); }
+        if (step === 1440 && !S.monthly && gaps.length) { // trading days: weekends and holidays absent, one value per trading day (EUR/USD, rates)
+          const weekend = gaps.filter(g => { for (let m = t[g] + 1440; m < t[g + 1]; m += 1440) { const wd = new Date(m * 60000).getUTCDay(); if (wd !== 0 && wd !== 6) return false; } return true; }).length;
+          if (weekend >= gaps.length / 2 && gaps.every(g => t[g + 1] - t[g] <= 5 * 1440)) { notes.push(`ℹ Trading days: ${gaps.length.toLocaleString('en')} jumps of 2 to 5 days (weekends, holidays) are not gaps; one value per trading day.`); gaps.length = 0; }
+        }
         notes.push(`ℹ Dates read: ${D.dates[0].s} to ${D.dates[D.dates.length - 1].s}${step ? `, one line per ${stepName(step, S.monthly)}` : ''}. Only the values are used by the models.`);
         checks.push([!bad.length, 'Dates in increasing order, no duplicate', `Line ${ln(bad)}: date not after the previous one (duplicate or out of order; a clock change in local time?).`]);
         if (step) checks.push([!odd.length, `Same time step everywhere (${stepName(step, S.monthly)})`, `Line ${ln(odd)}: the time since the previous line is not a whole number of steps (one step = one ${stepName(step, S.monthly)}). Use one time step for the whole series.`]);
@@ -180,25 +184,97 @@
           if (L && !L.invalid.length) {
             const SL = stamps(L.dates);
             if (SL.monthly === S.monthly) {
-              const gap = t[0] - SL.t[SL.t.length - 1], okc = gap === step, msg = `The learning series ends at ${L.dates[L.dates.length - 1].s} and this one starts at ${D.dates[0].s}`;
-              if (T) checks.push([okc, 'Follows the learning series with no step missing', `${msg}: it should start one step later.`]);
+              const gap = t[0] - SL.t[SL.t.length - 1], gd = gapDates(), okc = gd && gd.follows !== undefined ? gd.follows : gap === step /* trading days: Friday → Monday follows */, msg = `The learning series ends at ${L.dates[L.dates.length - 1].s} and this one starts at ${D.dates[0].s}`;
+              if (T && $('gap').checked) {
+                checks.push([gap > 0, 'Taken after the learning series', `${msg}: it must start later.`]);
+              }
+              else if (T) checks.push([okc, 'Follows the learning series with no step missing', `${msg}: it should start one step later, or tick “Not right after the learning series” if it does not follow.`]);
               else if (!okc) notes.push(`ℹ ${msg}.`);
-              if (T) { const k = (t[0] - SL.t[0]) / step; checks.push([Number.isInteger(k) && k % T === 0, `Starts at the same phase as the learning series (${D.dates[0].s} and ${L.dates[0].s})`, `The learning series starts at ${L.dates[0].s} and this one at ${D.dates[0].s}: not the same phase of the period (with a daily cycle, not the same hour). The hour inputs (sine, cosine) would be shifted and every score would be wrong.`]); }
             }
           }
         }
       }
     }
-    if (id === 'learn' && T >= 2 && v.length) { // same phase for both series: the learning series holds whole periods (whole weeks with the week ticked), so the series to forecast starts at the same phase
-      const wk = $('weekly').checked, P = wk ? 7 * T : T, k = v.length % P, unit = wk ? 'weeks' : 'periods';
-      checks.push([!k, `Whole ${unit} (${Math.floor(v.length / P).toLocaleString('en')} × ${P} values), so both series start at the same phase${wk ? ' and on the same day of the week' : ''}`, `${v.length.toLocaleString('en')} values = ${Math.floor(v.length / P).toLocaleString('en')} ${unit} of ${P} + ${k}: the series to forecast would not start at the same phase${wk ? ' and day of the week' : ''} as this one, and every score would be wrong. Move the last ${k} value${k > 1 ? 's' : ''} to the start of the series to forecast (or delete ${k > 1 ? 'them' : 'it'}).`]);
-    }
-    if (T >= 2 && !D) notes.push(`⚠ Same phase, to check yourself: without dates, the page cannot see the hours. The first value of the learning series and the first value of the series to forecast must be at the same phase of the period${T >= 24 && 1440 % T === 0 ? ' (with a daily cycle: the same hour, for instance both at 00:00)' : ''}. Otherwise the hour inputs (sine, cosine) are shifted and every score is wrong.`);
-    else if (id === 'fore' && T >= 2) notes.push(`ℹ Same phase: this series must start at the same phase as the learning series${T >= 24 && 1440 % T === 0 ? ' (the same hour with a daily cycle)' : ''}, right after its last value.`);
+    if (id === 'learn' && T >= 2 && v.length % T && $('gap').checked) notes.push(`ℹ Not right after: the last ${v.length % T} learning value${v.length % T > 1 ? 's are' : ' is'} not used, so that the series to forecast starts at the hour of the first learning value.`);
+    if (T >= 2 && !D && id === 'fore' && !$('gap').checked) notes.push('⚠ No dates: the page takes this series as following the learning series right after its last value, so the phase is known. If it does not (later, or another site), tick the box below.');
+    else if (id === 'fore' && T >= 2 && !$('gap').checked) notes.push('ℹ Right after the learning series: the phase is known, all sine/cosine inputs are kept.');
+    if (id === 'fore' && $('gap').checked) notes.unshift(gapNote());
     if (v.length && Math.min(...v) < 0) notes.push('ℹ Some values are negative: the three ELMs that take a logarithm will be set aside.');
     if (!D) notes.push('ℹ No date column: gaps and the start of the period cannot be checked here. Optional: put the date before each value (2026-06-01T10:00;412.5).');
     if (id === 'learn' && filledNote) notes.unshift(filledNote);
     return { checks, notes, v, ok: checks.every(c => c[0]), gaps: gapCount };
+  }
+  // series to forecast taken later (Cyril, 2026-11-25): the user confirms, or the dates show, whether both series start at the same hour
+  // and on the same day of the year. Not the same hour: no period at all (steps per period = none). Not the same day: no day of the year.
+  let gapT = null; // steps per period saved while "taken later" switches the period off
+  let gapAuto = false; // the last state came from the dates
+  const sunTimes = () => { // the two UTC times of the sun-position option, when the series to forecast does not follow
+    if (!$('solar').checked || $('solNight').value !== 'sun' || !$('gap').checked) return null;
+    const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})$/, a = $('solStart').value.trim(), b = $('solStartTest').value.trim();
+    if (!iso.test(a) || !iso.test(b) || !isFinite(Date.parse(a)) || !isFinite(Date.parse(b))) return null;
+    const x = new Date(Date.parse(a)), y = new Date(Date.parse(b)), md = d => d.toISOString().slice(5, 16);
+    return { follows: undefined, hour: md(x).slice(5) === md(y).slice(5), day: md(x).slice(0, 5) === md(y).slice(0, 5), week: x.getUTCDay() === y.getUTCDay(), a: md(x).replace('T', ' '), b: md(y).replace('T', ' '), sun: true };
+  };
+  function gapDates() {
+    const L = splitDates($('learn').value), F = splitDates($('fore').value);
+    if (!L || !F || L.invalid.length || F.invalid.length || L.dates.length < 2 || !F.dates.length) return sunTimes();
+    const a = stamps(L.dates), b = stamps(F.dates); if (a.monthly !== b.monthly) return null;
+    if (a.monthly) { // month indices: follows when the first month to forecast is the month after the last learning month
+      const after = b.t[0] - a.t[a.t.length - 1], d = b.t[0] - a.t[0], mo = m => `${Math.floor(m / 12)}-${String(m % 12 + 1).padStart(2, '0')}`;
+      return { follows: after === 1, hour: d % 12 === 0, day: false, kind: 'month', a: mo(a.t[0]), b: mo(b.t[0]), monthly: true }; // monthly: question 2 = same month of the year
+    }
+    const cnt = new Map(); for (let i = 1; i < a.t.length; i++) { const z = a.t[i] - a.t[i - 1]; if (z > 0) cnt.set(z, (cnt.get(z) || 0) + 1); }
+    const step = [...cnt].sort((p, q) => q[1] - p[1])[0][0], md = m => new Date(m * 60000).toISOString().slice(5, 16), x = md(a.t[0]), y = md(b.t[0]);
+    const daily = step >= 1440, wd = m => new Date(m * 60000).getUTCDay(), days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']; // daily data: question 2 = same day of the week (Cyril 2026-11-25)
+    let maxGap = step; for (let i = 1; i < a.t.length; i++) maxGap = Math.max(maxGap, a.t[i] - a.t[i - 1]); // trading days: weekends already inside the learning series
+    const after = b.t[0] - a.t[a.t.length - 1];
+    return daily ? { follows: after > 0 && after <= maxGap, hour: wd(a.t[0]) === wd(b.t[0]), day: false, kind: 'day', a: `${x.slice(0, 5)} (${days[wd(a.t[0])]})`, b: `${y.slice(0, 5)} (${days[wd(b.t[0])]})` }
+      : { follows: after > 0 && after <= maxGap, hour: x.slice(5) === y.slice(5), day: x.slice(0, 5) === y.slice(0, 5), kind: 'hour', a: x.replace('T', ' '), b: y.replace('T', ' ') };
+  }
+  function presetsFromDates() { // the presets that fit the step read from the learning dates; null without dates or with another step
+    const L = splitDates($('learn').value); if (!L || L.invalid.length || L.dates.length < 2) return null;
+    const S = stamps(L.dates); if (S.monthly) return ['12', '132'];
+    const cnt = new Map(); for (let i = 1; i < S.t.length; i++) { const x = S.t[i] - S.t[i - 1]; if (x > 0) cnt.set(x, (cnt.get(x) || 0) + 1); }
+    const step = [...cnt].sort((x, y) => y[1] - x[1])[0]?.[0];
+    return ({ 60: ['24'], 30: ['48'], 15: ['96'], 5: ['288'], 1440: ['7'] })[step] || null;
+  }
+  function gapKind(D) { // what question 2 means: from the dates; without dates from the period chosen; otherwise a general wording
+    if (D && D.kind) return D.kind; const n = parseInt(gapT !== null ? gapT : $('T').value, 10);
+    return n === 7 ? 'day' : n === 12 ? 'month' : n >= 24 && 1440 % n === 0 ? 'hour' : 'nodates';
+  }
+  function syncGap() {
+    const D = gapDates();
+    const auto = D && D.follows !== undefined; // series dates: the page sees whether the series to forecast follows
+    if (auto) $('gap').checked = !D.follows;
+    else if (gapAuto) { $('gap').checked = false; $('sameHour').checked = true; $('sameDay').checked = false; } // dates gone: back to the user's own answer
+    gapAuto = !!auto;
+    $('gap').disabled = !!auto; $('gap').parentElement.classList.toggle('gapoff', !!auto);
+    $('gap').parentElement.classList.toggle('hidden', !!auto && D.follows); // the dates show that it follows: nothing to tick
+    const g = $('gap').checked, kind = gapKind(D);
+    $('sameHourTxt').textContent = { hour: 'Same hour of the day', day: 'Same day of the week', month: 'Same month of the year', nodates: 'Same hour (hourly data), same day of the week (daily), same month (monthly)' }[kind];
+    $('sameDayTxt').textContent = kind === 'nodates' ? 'Same day of the year (hourly or finer data only)' : 'Same day of the year';
+    $('sameDay').parentElement.classList.toggle('hidden', kind !== 'hour' && kind !== 'nodates'); if (kind !== 'hour' && kind !== 'nodates') $('sameDay').checked = false; // the day of the year only for hourly or finer data
+    $('gapBox').classList.toggle('hidden', !g);
+    if (D && g) { $('sameHour').checked = D.hour; $('sameDay').checked = D.day; }
+    for (const id of ['sameHour', 'sameDay']) { $(id).disabled = !!D; $(id).parentElement.classList.toggle('gapoff', !!D); } // set from the dates: greyed, not editable
+    $('gapHint').textContent = !g ? '' : D ? `From the ${D.sun ? 'two sun-position times' : 'dates'}: learning ${D.a}, to forecast ${D.b} (UTC).` : 'No dates: tick what is true.';
+    const st = Date.parse($('solStart').value.trim()); $('solStartTest').placeholder = isFinite(st) ? new Date(new Date(st).setUTCFullYear(new Date(st).getUTCFullYear() + 1)).toISOString().slice(0, 16) + 'Z (for instance)' : 'UTC, with Z or an offset';
+    $('solStartTest').classList.toggle('need', g && $('solar').checked && $('solNight').value === 'sun' && !$('solStartTest').value.trim());
+    const off = g && !$('sameHour').checked;
+    if (off && gapT === null) { gapT = $('T').value; $('T').value = 'none'; } else if (!off && gapT !== null) { $('T').value = gapT; gapT = null; }
+    $('T').disabled = off; $('T').title = off ? 'None: the series to forecast does not start at the same hour.' : '';
+    const fit = presetsFromDates(); // with dates, only the presets that match the time step (Cyril 2026-11-25)
+    if (!off && fit && fit.length && !fit.includes($('T').value)) $('T').value = fit[0];
+    $('Tquick').querySelectorAll('button').forEach(b => { b.disabled = off || !!(fit && b.dataset.v !== 'none' && !fit.includes(b.dataset.v)); }); $('Tquick').classList.toggle('gapoff', off); // no period at all: the presets are greyed too
+    syncSolar(); syncPeriod();
+  }
+  function gapNote() { // short: which sine and cosine inputs are kept when the series to forecast does not follow
+    if ($('solar').checked && $('solNight').value === 'sun' && !$('solStartTest').value.trim()) return '⚠ Not right after, with the sun position: give the time of the first value TO FORECAST (Solar series, below), in UTC.';
+    const kind = gapKind(gapDates()), what = { hour: 'hour', day: 'day of the week', month: 'month', nodates: 'hour, day or month' }[kind];
+    if (!$('sameHour').checked) return `⚠ Not right after, not the same ${what}: no period, so no sine/cosine and no cyclic model (PAR, BLEND, Holt-Winters, Theta…).`;
+    if (kind === 'nodates') return `${$('sameDay').checked ? 'ℹ' : '⚠'} Not right after, same ${what}: sine/cosine of the period kept${$('sameDay').checked ? ' with the day of the year' : '; day of the year not used'}.`;
+    if (kind === 'day' || kind === 'month') return `ℹ Not right after, same ${what}: sine/cosine of the ${what} kept.`;
+    return $('sameDay').checked ? 'ℹ Not right after, same day and hour: all sine/cosine inputs kept (hour, day of the week, day of the year).' : '⚠ Not right after, same hour: sine/cosine of the hour kept; day of the year not used.';
   }
   function qc(id) {
     const box = $('qc-' + id), A = analyse(id);
@@ -219,7 +295,7 @@
     box.classList.toggle('bad', !A.ok); box.hidden = false;
   }
   // fills every missing step of the two series (and between them) on their common time grid, then cuts the learning series
-  // into whole periods (whole weeks for daily data) so that both series start at the same phase. Daily data get the period 7.
+  // at the end of the learning series. Daily data get the period 7.
   function fillGaps(mode) {
     const L = splitDates($('learn').value), F = $('fore').value.trim() ? splitDates($('fore').value) : null;
     if (!L || L.invalid.length || L.multi.length || L.blank.length || F && (F.invalid.length || F.multi.length || F.blank.length)) return fail('Fill the gaps: first correct the dates marked ✗ in the data check.');
@@ -246,8 +322,7 @@
     }
     let note = `ℹ Filled: ${added.toLocaleString('en')} line${added > 1 ? 's' : ''} added ${mode === 'prev' ? 'with the previous value' : 'with the mean of the values before and after'}.`;
     if (!S.monthly && step === 1440 && !readT().error && readT().T === 0) { $('T').value = '7'; note += ' One value per day now: period set to 7 (the week).'; }
-    const r = readT(), P = r.error || !r.T ? 1 : r.T * ($('weekly').checked ? 7 : 1), keep = Math.floor(nL / P) * P;
-    if (keep < nL) note += ` The last ${nL - keep} learning line${nL - keep > 1 ? 's' : ''} moved to the start of the series to forecast (whole periods, same phase).`;
+    const keep = nL;
     $('learn').value = out.slice(0, keep).map(([s, v]) => s + ';' + v).join(String.fromCharCode(10));
     $('fore').value = out.slice(keep).map(([s, v]) => s + ';' + v).join(String.fromCharCode(10));
     filledNote = note;
@@ -256,12 +331,15 @@
   // annual cycle: only when one period is one day and the learning series covers one year (Cyril, 2026-11-25; was two years)
   function annualNeed() { const r = readT(); return !r.error && r.T >= 24 && 1440 % r.T === 0 ? 365 * r.T : 0; } // the day of the year is j / T: only when one period is one day (24, 48, 96, 288… steps)
   function syncAnnual() {
-    const need = annualNeed(), ok = need > 0 && learnN >= need;
+    const need = annualNeed(), gap = $('gap').checked && !($('sameDay').checked && $('sameHour').checked), ok = need > 0 && learnN >= need && !gap;
     $('annualL').classList.toggle('off', !ok); if (!ok) $('annual').checked = false;
-    $('annualWhy').textContent = ok ? '' : need ? `(needs one year of learning data: ${need.toLocaleString('en')} values)` : '(needs one period = one day: 24, 48 or 96 steps)';
+    const noWeek = $('gap').checked && !($('sameDay').checked && $('sameHour').checked); // not right after: the week only when both questions are ticked (Cyril 2026-11-25)
+    $('weeklyL').classList.toggle('gapoff', noWeek); if (noWeek) $('weekly').checked = false; // taken later: no day of the week or of the year across the gap (Cyril, 2026-11-25)
+    $('annualWhy').textContent = ok ? '' : gap ? '(not right after: needs the same day and the same hour)' : need ? `(needs one year of learning data: ${need.toLocaleString('en')} values)` : '(needs one period = one day: 24, 48 or 96 steps)';
   }
-  $('learn').addEventListener('input', () => { maxLearn = 10000; filledNote = ''; count('learn', 'nlearn'); });
-  $('fore').addEventListener('input', () => count('fore', 'nfore'));
+  // typed or pasted data are no longer the example: its description goes (Cyril, 2026-11-25)
+  $('learn').addEventListener('input', e => { if (e.isTrusted) $('exlabel').textContent = ''; maxLearn = 10000; filledNote = ''; count('learn', 'nlearn'); syncGap(); });
+  $('fore').addEventListener('input', e => { if (e.isTrusted) $('exlabel').textContent = ''; count('fore', 'nfore'); syncGap(); });
   function syncSearch() {
     const any = $('optIn').checked || $('optNh').checked || $('optLam').checked;
     $('slow').classList.toggle('hidden', !any);
@@ -311,21 +389,30 @@
     const extra = (!none && !r.error ? [$('weekly').checked ? ' + day of the week (1 to 7)' : '', $('annual').checked ? ' + day of the year (365.25 days)' : ''] : []).join('');
     $('Thint').textContent = $('Thint').textContent.replace('CLOCKX', extra);
   }
-  $('T').addEventListener('input', syncPeriod);
+  $('T').addEventListener('input', () => { syncPeriod(); syncGap(); }); // the questions follow the period when there are no dates
   $('weekly').addEventListener('change', syncPeriod); $('annual').addEventListener('change', syncPeriod);
-  $('Tquick').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; $('T').value = b.dataset.v; syncPeriod(); });
+  $('Tquick').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || $('T').disabled) return; $('T').value = b.dataset.v; syncPeriod(); syncGap(); });
 
-  const EXAMPLES = { ghi: ['example-ghi.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).ghi, { scoreOn: 'day' }], edf: ['example.js?v=1.3.0', () => self.PRED_EXAMPLE, null], gti: ['example-gti.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).gti, { scoreOn: 'day' }], sunspots: ['example-sunspots.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).sunspots, null], eurusd: ['example-eurusd.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).eurusd, null], us10y: ['example-us10y.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).us10y, null], dkasc: ['example-dkasc.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).dkasc, { scoreOn: 'day' }] };
-  const syncSolar = () => $('solarBox').classList.toggle('hidden', !$('solar').checked);
-  $('solar').addEventListener('change', syncSolar);
-  function setSolar(o) { $('solar').checked = !!o; if (o && o.scoreOn) $('solScore').value = o.scoreOn; if (o && o.cvOn) $('solCv').value = o.cvOn; syncSolar(); }
+  const EXAMPLES = { ghi: ['example-ghi.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).ghi, { scoreOn: 'day', night: 'sun', lat: 44.0128, lon: 20.9114, start: '2023-09-01T00:00Z', stamp: 'start' }], edf: ['example.js?v=1.4.0', () => self.PRED_EXAMPLE, null], gti: ['example-gti.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).gti, { scoreOn: 'day', night: 'observed' }], sunspots: ['example-sunspots.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).sunspots, null], eurusd: ['example-eurusd.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).eurusd, null], us10y: ['example-us10y.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).us10y, null], dkasc: ['example-dkasc.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).dkasc, { scoreOn: 'day', night: 'sun', lat: -23.762, lon: 133.875, start: '2021-02-25T14:35Z', stamp: 'end' }] };
+  const syncSolar = () => { $('solarBox').classList.toggle('hidden', !$('solar').checked); $('sunBox').classList.toggle('hidden', $('solNight').value !== 'sun'); for (const id of ['solStartTest', 'solStartTestL']) $(id).classList.toggle('hidden', !$('gap').checked); };
+  $('solar').addEventListener('change', syncGap); $('solNight').addEventListener('change', syncGap); ['solStart', 'solStartTest'].forEach(id => $(id).addEventListener('input', syncGap)); $('gap').addEventListener('change', syncGap);
+  ['sameHour', 'sameDay'].forEach(id => $(id).addEventListener('change', syncGap));
+  function setSolar(o) {
+    $('solar').checked = !!o;
+    if (o) {
+      if (o.scoreOn) $('solScore').value = o.scoreOn; if (o.cvOn) $('solCv').value = o.cvOn;
+      $('solNight').value = ['sun', 'none'].includes(o.night) ? o.night : 'observed';
+      $('solLat').value = o.lat ?? ''; $('solLon').value = o.lon ?? ''; $('solStart').value = o.start || ''; $('solStartTest').value = o.startTest || ''; $('solStamp').value = o.stamp || 'start';
+    }
+    syncSolar();
+  }
   function loadExample(then, key) {
     const [file, get, sol] = EXAMPLES[key || $('exsel').value] || EXAMPLES.ghi;
     const load = () => {
       const x = get();
-      filledNote = '';
+      filledNote = ''; $('gap').checked = false; if (gapT !== null) { $('T').disabled = false; gapT = null; } // an example follows its learning series: no leftover "not right after"
       const dl = (v, d) => d ? v.map((y, i) => d[i] + ';' + y) : v; $('learn').value = dl(x.learn, x.dates && x.dates.learn).join('\n'); $('fore').value = dl(x.forecast, x.dates && x.dates.forecast).join('\n'); $('T').value = x.T; $('weekly').checked = !!x.weekly; $('annual').checked = !!x.annual; syncPeriod(); // the example's cycles before the hint is written
-      setSolar(sol); $('exlabel').textContent = x.label; count('learn', 'nlearn'); count('fore', 'nfore'); then && then();
+      setSolar(sol); $('exlabel').textContent = x.label; count('learn', 'nlearn'); count('fore', 'nfore'); syncGap(); then && then();
     };
     if (get()) return load();
     const s = document.createElement('script'); s.src = file; s.onload = load; document.head.append(s);
@@ -337,7 +424,15 @@
   function fail(msg, title) { const e = $('err'); e.innerHTML = `<b>${title || 'Something needs fixing'}</b>`; e.append(document.createTextNode(msg)); e.classList.add('on'); e.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   function solarCfg() {
     if (!$('solar').checked) return null;
-    return { scoreOn: $('solScore').value, cvOn: $('solCv').value };
+    const o = { scoreOn: $('solScore').value, cvOn: $('solCv').value, night: $('solNight').value };
+    if (o.night !== 'sun') return o;
+    const lat = $('solLat').value.trim(), lon = $('solLon').value.trim(), start = $('solStart').value.trim();
+    if (lat === '' || !(Math.abs(+lat) <= 90)) return { error: 'Sun position: give the latitude of the site, in degrees between -90 and 90 (north positive), or choose "observed zeros".' };
+    if (lon === '' || !(Math.abs(+lon) <= 180)) return { error: 'Sun position: give the longitude of the site, in degrees between -180 and 180 (east positive).' };
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})$/.test(start) || !isFinite(Date.parse(start))) return { error: 'Sun position: give the time of the first learning value with its time zone, for instance 2021-02-25T14:35Z (UTC) or 2021-02-26T00:05+09:30.' };
+    const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})$/, startTest = $('solStartTest').value.trim();
+    if ($('gap').checked && (!iso.test(startTest) || !isFinite(Date.parse(startTest)))) return { error: `Sun position: the series to forecast does not follow the learning series, so give the time of its first value too, in UTC (for instance ${isFinite(Date.parse(start)) ? new Date(new Date(Date.parse(start)).setUTCFullYear(new Date(Date.parse(start)).getUTCFullYear() + 1)).toISOString().slice(0, 16) + 'Z' : '2024-09-01T00:00Z'}, one year after the first learning value).` };
+    return Object.assign(o, { lat: +lat, lon: +lon, start, stamp: $('solStamp').value }, $('gap').checked ? { startTest } : {});
   }
   function readJob() {
     $('err').classList.remove('on');
@@ -358,13 +453,15 @@
     if (!(qlo > 0 && qlo < 0.5 && qhi > 0.5 && qhi < 1)) return fail('Interval levels: the lower level must lie between 0 and 50 %, the upper level between 50 and 100 %.');
     const models = sels.map(s => s.value);
     if (new Set(models).size < 4) return fail('Models: choose four different models.');
+    const sol = solarCfg(); if (sol && sol.error) return fail(sol.error);
+    if (sol && sol.night === 'sun' && 1440 % T) return fail('Sun position: the period T must divide one day (24 for hourly steps, 96 for 15 min, 288 for 5 min), so that the step is known.');
     return {
       train: L.values, test: F.values, models,
-      cfg: { T, weekly: $('weekly').checked, annual: $('annual').checked, horizons: [h], lbOpts, pca: $('pca').checked, pcaVar: 0.95,
+      cfg: { T, gap: $('gap').checked, gapSameDay: $('gap').checked && $('sameDay').checked && $('sameHour').checked, weekly: $('weekly').checked, annual: $('annual').checked, horizons: [h], lbOpts, pca: $('pca').checked, pcaVar: 0.95,
         opt: { inputs: $('optIn').checked, neurons: $('optNh').checked, ridge: $('optLam').checked, smooth: $('optSm').checked },
         nhOpts: [10, 50, 100, 500], ncand: 5, ncandFixed: 5, // every ELM keeps the best of 5 random hidden layers, for each input size tried when searched (Cyril, 2026-11-26: 30 made runs 6 to 30 times longer)
         lbFixed: lbOpts[+$('lbFix').value], nhFixed: +$('nhFix').value, lamFixed: +$('lamFix').value,
-        act: $('act').value, qlo, qhi, bandKind: $('bandKind').value, bandAsym: $('asym').checked, bandPhase: $('bandPhase').checked, norm: radio('norm'), prep: radio('prep'), clip: $('clip').checked, solar: solarCfg(), seed: 42, folds: 5 },
+        act: $('act').value, qlo, qhi, bandKind: $('bandKind').value, bandAsym: $('asym').checked, bandPhase: $('bandPhase').checked, norm: radio('norm'), prep: radio('prep'), clip: $('clip').checked, solar: sol, seed: 42, folds: 5 },
     };
   }
 
@@ -385,7 +482,7 @@
     job = nj; result = null; ran = API.snapshot(); $('results').classList.add('hidden'); $('kpis').innerHTML = ''; $('err').classList.remove('on'); // nothing from the previous run stays on screen
     $('go').disabled = true; $('stop').disabled = false; $('barfill').style.width = '0';
     $('status').textContent = 'Starting…'; t0 = performance.now();
-    try { worker = new Worker('worker.js?v=1.3.0'); } catch (e) { reset(); return fail('Open this page through a web server (not as a local file) so that the computation can run in the background.'); }
+    try { worker = new Worker('worker.js?v=1.4.0'); } catch (e) { reset(); return fail('Open this page through a web server (not as a local file) so that the computation can run in the background.'); }
     worker.onmessage = e => {
       const m = e.data;
       if (m.type === 'progress') { $('barfill').style.width = (100 * m.f).toFixed(1) + '%'; $('status').textContent = `${Math.round(100 * m.f)} % · ${m.text}`; }
@@ -446,9 +543,10 @@
   function kpis() {
     const h = H(), ms = live(h), bn = best('nrmse', ms.map(id => h.models[id].score.nrmse));
     const sc0 = h.persistence.n, positiveOnly = result.solar?.scoreOn === 'day';
-    $('rsub').textContent = `Learning: ${job.train.length.toLocaleString('en')} values · Test: ${job.test.length.toLocaleString('en')} values · Horizon ${h.h} · ${sc0.toLocaleString('en')} of ${h.y.length.toLocaleString('en')} forecasts scored` + (positiveOnly ? ' · observed targets > 0' : '') + (result.solar ? ' · night (observed 0) written as 0: not causal' : '');
+    $('rsub').textContent = `Learning: ${job.train.length.toLocaleString('en')} values · Test: ${job.test.length.toLocaleString('en')} values · Horizon ${h.h} · ${sc0.toLocaleString('en')} of ${h.y.length.toLocaleString('en')} forecasts scored` + (positiveOnly ? (result.solar.night === 'sun' ? ` · daytime targets (sun above ${result.solar.dayMin}°)` : ' · observed targets > 0') : '') + (!result.solar ? '' : result.solar.night === 'sun' ? ' · night from the sun position written as 0 (causal)' : result.solar.night === 'none' ? ' · no night rule' : ' · night (observed 0) written as 0: not causal');
     const warnings = new Set(live(h).flatMap(id => Object.values(h.models[id].score.notes || {})).filter(x => typeof x === 'string'));
     if (h.cvValidation?.warning) warnings.add(h.cvValidation.warning);
+    if (result.solar?.warning) warnings.add('Sun position: ' + result.solar.warning);
     if (h.cvValidation?.normalizationNote) warnings.add(`Validation: ${h.cvValidation.normalizationNote}`);
     if (!sc0 && positiveOnly) warnings.add('No positive observations remain at this horizon. Scores on positive targets are unavailable.');
     $('scoreNotes').textContent = [...warnings].join(' ');
@@ -482,10 +580,44 @@
         const poor = k !== null && /^nice/.test(c[0]) && s[c[0]] >= 1;
         return `<td${k !== null && s[c[0]] === b[c[0]] ? ' class="best"' : poor ? ' class="poor"' : ''}>${fmt(s[c[0]], c[0])}${poor ? '*' : ''}</td>`;
       }).join('') + '</tr>').join('') + '</tbody>';
+    if ($('wilBox').open) wilTable();
     const h = H(), anyPoor = M.some(r => C.some(c => /^nice/.test(c[0]) && r[1][c[0]] >= 1));
     $('chosen').innerHTML = `${anyPoor ? '<b class="poor">* NICE ≥ 1: not reliable.</b> The model does no better than persistence (repeating the last value) on this series. ' : ''}${job.cfg.norm === 'none' ? 'Errors shown in the units of the series.' : 'Normalized errors are fractions. See the notes for any change to the requested scale.'} ${job.cfg.prep === 'center' ? 'Series centred before modelling. ' : job.cfg.prep === 'standard' ? 'Series centred and scaled before modelling. ' : job.cfg.prep === 'profile' ? 'Mean profile removed before modelling and added back to forecasts and intervals. ' : ''}${Math.round(100 * target)} % ${job.cfg.bandKind === 'gaussian' ? 'Gaussian' : job.cfg.bandAsym ? 'asymmetric conformal-style' : 'symmetric conformal-style'} intervals. Best value in bold. Hover a column name for its definition.<br><b>Settings kept</b> — ` +
       live(h).map(id => { const c = h.models[id].chosen; const p = Object.entries(c).filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => `${k} ${typeof v === 'number' ? +v.toPrecision(4) : v}`).join(', '); return `${E.MODELS[id].name}${p ? ': ' + p : ': no setting'}`; }).join(' · ');
   }
+
+  // ---------- Wilcoxon signed-rank test, pair by pair, on demand (Cyril, 2026-11-25) ----------
+  // absolute errors of two models on the same scored targets of the horizon shown; E.wilcoxon gives the two-sided p-value
+  function wilTable() {
+    const h = H(), ids = live(h), idx = h.scored || h.y.map((_, i) => i);
+    const err = id => idx.map(i => h.y[i] - h.models[id].pred[i]), name = id => E.MODELS[id].name, esc = t => String(t).replace(/</g, '&lt;');
+    if (ids.length < 2) { $('wil').innerHTML = '<p class="note">Tick at least two models.</p>'; return; }
+    const E_ = Object.fromEntries(ids.map(id => [id, err(id)])), pairs = ids.length * (ids.length - 1) / 2;
+    const fp = p => !Number.isFinite(p) ? '–' : p < 0.001 ? '&lt; 0.001' : p.toFixed(3);
+    let rows = '';
+    for (const a of ids) {
+      rows += `<tr><th scope="row">${esc(name(a))}</th>`;
+      for (const b of ids) {
+        if (a === b) { rows += '<td class="diag"></td>'; continue; }
+        const w = E.wilcoxon(E_[a], E_[b]);
+        if (!Number.isFinite(w.p)) { rows += `<td class="ns">–<small>too few pairs (${w.n})</small></td>`; continue; }
+        const sig = w.p < 0.05, win = w.better === 'a' ? a : w.better === 'b' ? b : null, ea = E_[a], eb = E_[b];
+        let closer = 0; for (let i = 0; i < ea.length; i++) if (Math.abs(win === b ? eb[i] : ea[i]) < Math.abs(win === b ? ea[i] : eb[i])) closer++;
+        rows += `<td class="${sig ? 'sig' : 'ns'}" title="n = ${w.n} nonzero differences, ${w.zeros} ties at 0; median of |error| ${esc(name(a))} − |error| ${esc(name(b))} = ${+w.medianDiff.toPrecision(3)}">p ${fp(w.p)}<small>${sig && win ? esc(name(win)) + ' better, closer on ' + Math.round(100 * closer / ea.length) + ' % of targets' : 'no significant difference'}</small></td>`;
+      }
+      rows += '</tr>';
+    }
+    $('wil').innerHTML = `<p class="note">Horizon ${h.h}, ${idx.length.toLocaleString('en')} scored targets${h.scored ? ' (the same as the scores above)' : ''}. Each cell compares the model of its row with the model of its column.</p>
+      <div class="tablewrap"><table><thead><tr><th></th>${ids.map(id => `<th scope="col">${esc(name(id))}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="note"><b>What the test does.</b> For every scored target, it takes the absolute error of each of the two models and looks at the difference. It ranks these differences by size and checks whether one model wins more often, and by larger margins, than chance would give (Wilcoxon signed-rank test, paired, two-sided; normal approximation with continuity and tie corrections).</p>
+      <p class="note"><b>What the p-value means.</b> It is the probability of seeing a difference at least this large if the two models were in fact equally accurate.</p>
+      <ul class="note"><li><b>p &lt; 0.05</b>: the difference is significant at the 5 % level; the cell names the model with the smaller errors.</li>
+      <li><b>p ≥ 0.05</b>: these data do not show a difference. This does not prove that the two models are equal.</li>
+      <li>The test looks at the typical error (ranks of the differences), while RMSE is driven by the largest errors. Two close nRMSE can hide very different typical errors: one model can be closer most of the time while both miss the same big jumps.</li><li>The p-value says nothing about the size of the gain: a tiny gain on many targets can be significant. Look at the MAE and the nRMSE for the size.</li>
+      <li>Successive errors of a time series are correlated, so the test is optimistic: the true p-value is larger than the one shown.</li>
+      <li>${pairs} pair${pairs > 1 ? 's are' : ' is'} tested here: even with equally good models, about ${(0.05 * pairs).toFixed(pairs < 20 ? 2 : 1)} would come out below 0.05 by chance.</li></ul>`;
+  }
+  $('wilBox').addEventListener('toggle', () => { if ($('wilBox').open && result) wilTable(); });
 
   // ---------- canvas helpers ----------
   function setup(cv, hgt) {
@@ -690,7 +822,7 @@
   // ---------- jobs from outside (API.md): #job= link, .json file (opened or dropped). ?job=<url> and postMessage removed (Cyril, 13 Nov. 2026): automation goes through FrugalCast Local ----------
   // Everything is computed here, in the visitor's browser. The #fragment of a URL is never sent to the server.
   const SITE = 'https://frugalcast.cyrilvoyant.com/';   // provisional address, until Cyril chooses the subdomain
-  const CITE = `Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.3.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717`;
+  const CITE = `Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.4.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717`;
   const API = (() => {
     let via = null, asked = false;
     const enc = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
@@ -717,6 +849,7 @@
       }
       if (j.period !== undefined) $('T').value = j.period === null || j.period === 0 ? 'none' : String(j.period);
       syncPeriod();
+      $('gap').checked = !!j.gap; $('sameHour').checked = j.gapSameHour !== false && !!j.gap; $('sameDay').checked = !!j.gapSameDay; syncSolar(); syncGap();
       if (j.weekly !== undefined) $('weekly').checked = !!j.weekly;
       if (j.annual) { const need = annualNeed(); if (!(need > 0 && learnN >= need)) throw new Error(need ? `"annual" needs one year of learning data: at least ${need.toLocaleString('en')} values` : '"annual" needs one period = one day (24, 48 or 96 steps, for instance)'); }
       if (j.annual !== undefined) $('annual').checked = !!j.annual;
@@ -761,7 +894,7 @@
       const r = readT(), lb = r.error ? null : E.inputOptions(r.T);
       return { format: 'frugalcast-job/1', label: $('exlabel').textContent || undefined,
         learn: E.parse(seriesText('learn'), 'x').values || [], forecast: E.parse(seriesText('fore'), 'x').values || [],
-        period: r.T || 'none', weekly: $('weekly').checked, annual: $('annual').checked, horizon: +$('horizon').value,
+        period: r.T || 'none', gap: $('gap').checked || undefined, gapSameHour: $('gap').checked ? $('sameHour').checked : undefined, gapSameDay: $('gap').checked ? $('sameDay').checked : undefined, weekly: $('weekly').checked, annual: $('annual').checked, horizon: +$('horizon').value,
         models: sels.map(s => s.value),
         search: { inputs: $('optIn').checked, neurons: $('optNh').checked, ridge: $('optLam').checked, smooth: $('optSm').checked },
         fixed: { inputs: lb ? lb[+$('lbFix').value] : undefined, neurons: +$('nhFix').value, ridge: +$('lamFix').value, activation: $('act').value },
@@ -779,6 +912,21 @@
         })),
         solar: result.solar || null, cvValidation: h.cvValidation, persistence: h.persistence,
         skipped: result.skipped };
+    }
+    // provenance (2026-11-25): what is needed to check and repeat the run; computed in the browser, nothing is sent
+    const sha256 = async text => { try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); } catch (e) { return null; } };
+    async function provenance(h) {
+      let engine = null;
+      try { engine = await sha256((await (await fetch(document.querySelector('script[src^="engine.js"]').src, { cache: 'force-cache' })).text()).replace(/\r\n?/g, '\n')); } catch (e) { /* offline copy */ }
+      const ids = live(h), idx = h.scored || h.y.map((_, i) => i), err = id => idx.map(i => h.y[i] - h.models[id].pred[i]), wil = [];
+      for (let i = 0; i < ids.length; i++) for (let k = i + 1; k < ids.length; k++) { const w = E.wilcoxon(err(ids[i]), err(ids[k])); wil.push({ a: ids[i], b: ids[k], n: w.n, ties: w.zeros, medianDiff: w.medianDiff, z: w.z, p: w.p, better: w.better === 'a' ? ids[i] : w.better === 'b' ? ids[k] : null }); }
+      return {
+        created_utc: new Date().toISOString(), engine: { version: (/Version ([\d.]+)/.exec(CITE) || [])[1] || null, sha256: engine, note: 'SHA-256 of engine.js with LF line ends, as the local kit computes it' },
+        inputs: { learning: { n: job.train.length, sha256: await sha256(job.train.join('\n')) }, forecast: { n: job.test.length, sha256: await sha256(job.test.join('\n')) }, note: 'SHA-256 of the values, one per line, as JavaScript writes numbers' },
+        scoredTargets: idx.length, wilcoxon: { test: 'Wilcoxon signed-rank, paired, two-sided, on absolute errors of the scored targets; normal approximation with tie and continuity corrections; errors of a time series are correlated, so p-values are optimistic', pairs: wil },
+        reproduce: 'Same series (same SHA-256), same settings and same engine SHA-256 give the same numbers (random draws seeded, seed 42).',
+        bibtex: [...new Set(['FrugalCast', 'Voyant2025Nice'].concat(...job.models.map(PAPERS_OF)))].map(k => (self.PRED_BIB || {})[k]).filter(Boolean).join('\n\n'),
+      };
     }
     async function take(j, how) {
       via = how;
@@ -831,8 +979,9 @@
       const j = outJob(); if (!j) return fail('Paste or load the series first, or untick "Include my series".');
       const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(j, null, 1)], { type: 'application/json' })); a.download = j.learn ? 'frugalcast-settings-and-data.json' : 'frugalcast-settings.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
-    $('resJson').addEventListener('click', () => {
-      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(results(), (_, v) => v === Infinity ? 'Infinity' : v === -Infinity ? '-Infinity' : v)], { type: 'application/json' })); a.download = `frugalcast_results_h${H().h}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    $('resJson').addEventListener('click', async () => {
+      const out = results(); out.provenance = await provenance(H());
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(out, (_, v) => v === Infinity ? 'Infinity' : v === -Infinity ? '-Infinity' : v)], { type: 'application/json' })); a.download = `frugalcast_results_h${H().h}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
     return {
       done() { if (!via) return; citeBox(); via = null; },
