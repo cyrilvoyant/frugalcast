@@ -43,7 +43,7 @@ Every field is optional. A **settings file** has no `learn` and no `forecast`: i
 | `horizon` | 1 to 100 | Lead time in steps (lags). |
 | `models` | exactly 4 ids | See § 4. |
 | `search` | `inputs`, `neurons`, `ridge`, `smooth`: true / false | Settings chosen by temporal cross-validation; `ridge: true` means λ of the ELM ridge by generalised cross-validation (GCV, Golub, Heath and Wahba 1979) in each fit. A searched setting cannot also be fixed. |
-| `fixed.inputs` | number of lags | Rounded to the nearest offered value (¼, ½, ¾ or all of min(2 periods, 500) past values, i.e. 0.5, 1, 1.5 or 2 periods while 2 periods ≤ 500; 8, 16, 24 or 32 lags without a period or when the period is under 8 steps). |
+| `fixed.inputs` | number of lags | Rounded to the nearest offered value (1/10, ¼, ½ or all of min(1 period, 500) past values, engine 1.3.0; 3, 8, 16 or 32 lags without a period or when the period is under 8 steps). |
 | `fixed.neurons` | 10, 50, 100, 500 | Hidden neurons of the ELMs (nearest value). |
 | `fixed.ridge` | 1e-6 | Ridge λ when it is not chosen by GCV (only value). |
 | `fixed.activation` | sigmoid, tanh, relu, sine, gaussian | ELM activation. |
@@ -134,7 +134,7 @@ The page is meant to be used by a person, with up to 50,000 values in a job. For
 
 The tool is free for research, teaching and any non-commercial use, provided you cite it:
 
-> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.2.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
+> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.3.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
 
 Cite the papers of the models you use as well. After a job opened from a file or a link, the page offers a `.bib` file with the papers of the four models.
 

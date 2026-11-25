@@ -26,6 +26,12 @@
 
 A data check appears under each box as soon as data are pasted. Each line may start with its date (`2026-06-01T10:00;412.5`): only the values go to the models, and the dates let the page also check rules 1 and 3.
 
+## What is new in 1.3.0
+
+- Inputs: 1/10, 1/4, 1/2 or all of one period, capped at 500 past values (was 0.5 to 2 periods). For 5-minute data (period 288): 29, 72, 144 or 288 lags instead of 125 to 500; the recent past now has its say. Without a period: 3, 8, 16 or 32 lags. Results change for every model (the scored samples start after the longest input window).
+- ELM draws: each ELM keeps the best of 5 random hidden layers (was 30 in 1.1.0 and 1.2.0), searched settings or not: runs are about 6 times faster.
+- NICE of 1 or more is shown in red with an asterisk: the model does no better than persistence on this series, so it is not reliable there.
+
 ## What is new in 1.2.0
 
 - Same phase: both series start at the same hour (the same phase of the period). The data check refuses a learning series that is not whole periods (whole weeks when the week is ticked) and, with dates, a series to forecast that does not start at the same phase; without dates, a warning asks to check it. The examples are cut into whole days or weeks.
@@ -55,6 +61,6 @@ The kit and programmatic access (API) are not available for now. To be told when
 
 Free for research, teaching and any other non-commercial use: code under [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/), texts under CC BY-NC 4.0 (see `LICENSE.md`). Please cite:
 
-> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.2.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
+> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.3.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
 
 Example data: hourly GHI in Kragujevac (Serbia), which contains modified Copernicus Atmosphere Monitoring Service information, 2026; EDF SEI open data, Corsica; GTI, Ajaccio; PV production, Alice Springs, from the [DimRed data set](https://stac.webservice-energy.org/collections/dimred) (Webservice-Energy STAC catalog, MINES Paris PSL), quality-checked data from the Desert Knowledge Australia Solar Centre; monthly sunspot number, WDC-SILSO, Royal Observatory of Belgium, Brussels (CC BY-NC 4.0); daily euro exchange rate, source: ECB statistics; daily US 10-year Treasury yield, source: Board of Governors of the Federal Reserve System (H.15) and U.S. Treasury.

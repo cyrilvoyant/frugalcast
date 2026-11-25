@@ -249,15 +249,17 @@
     const nonneg = train.every(v => v >= 0);
     return { S, Ntr, N, cfg, nonneg, T: cfg.T };
   };
-  E.inputOptions = function (T) { // 1/4, 1/2, 3/4 and all of M past values (engine 1.1.0): M = min(2 periods, 500), i.e. 0.5, 1, 1.5, 2 periods while 2T <= 500;
-    // without a period (or T < 8), M = 32: 8, 16, 24, 32 lags (1.0.0 used 1, 2, 4, 8, too short a memory)
-    const M = T < 8 ? 32 : Math.min(2 * T, 500);
-    return [0.25, 0.5, 0.75, 1].map(k => Math.max(1, Math.round(k * M)));
+  E.inputOptions = function (T, periods = 1) { // engine 1.3.0 (Cyril, 2026-11-26): one period at most, T/10, T/4, T/2 and T past values, capped at 500;
+    // 1.1.0-1.2.0 used 0.5 to 2 periods (125 to 500 lags for 5-minute data, too long a memory: persistence won).
+    // Without a period (or T < 8), M = 32: 3, 8, 16, 32 lags. FrugalCast Local may ask for 2 periods (periods = 2: longer learning).
+    const M = T < 8 ? 32 : Math.min(periods * T, 500);
+    return [...new Set([0.1, 0.25, 0.5, 1].map(k => Math.max(1, Math.round(k * M))))];
   };
   /* issue times: learning samples (target inside the learning series) and forecast samples (target in the forecast series).
      t0 leaves room for the longest input window and for one cycle, so that every model is scored on the same samples. */
   E.samples = function (ctx, h) {
-    const T = ctx.T, lbMax = Math.max(...E.inputOptions(T));
+    // the inputs actually offered (a fixed value outside the grid, or 2 periods in FrugalCast Local, may be longer than the default grid)
+    const T = ctx.T, lbMax = Math.max(...(ctx.cfg && ctx.cfg.lbOpts || E.inputOptions(T)));
     // also room for ARTU (t - h) and for the longest exponential smoothing window (48 values)
     const t0 = Math.max(lbMax - 1, T * Math.ceil(h / Math.max(T, 1)) - h, h, 47, 0);
     const tr = [], te = [];

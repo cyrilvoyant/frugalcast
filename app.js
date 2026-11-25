@@ -299,13 +299,13 @@
     ['weeklyL', 'prepProfL'].forEach(id => $(id).classList.toggle('off', none || !!r.error));
     lockCycle(none); if ($('learn').value.trim()) qc('learn'); if ($('fore').value.trim()) qc('fore');
     if (none) { $('weekly').checked = false; $('annual').checked = false; const pp = document.querySelector('input[name="prep"][value="profile"]'); if (pp.checked) document.querySelector('input[name="prep"][value="none"]').checked = true; }
-    const lb = r.error ? null : E.inputOptions(r.T), capped = !r.error && 2 * r.T > 500, short = !r.error && r.T > 0 && r.T < 8;
+    const lb = r.error ? null : E.inputOptions(r.T), capped = !r.error && r.T > 500, short = !r.error && r.T > 0 && r.T < 8;
     $('Thint').textContent = r.error ? 'Enter a whole number of steps, or none.' : none
-      ? 'Non-periodic: no clock inputs; cyclic models are set aside. Inputs: 8, 16, 24 or 32 lags (no period, so no natural scale: up to 32 past values).'
-      : `Clock inputs (sine and cosine): ${r.T >= 24 && 1440 % r.T === 0 ? `hour of the day (${r.T} steps)` : `place in the period (${r.T} steps)`}CLOCKX. Inputs: ${lb.join(', ')} lags${capped ? ' (capped at 500 past values)' : short ? ' (period under 8 steps: up to 32 past values)' : ' (0.5 to 2 periods)'}.`;
+      ? 'Non-periodic: no clock inputs; cyclic models are set aside. Inputs: 3, 8, 16 or 32 lags (no period, so no natural scale: up to 32 past values).'
+      : `Clock inputs (sine and cosine): ${r.T >= 24 && 1440 % r.T === 0 ? `hour of the day (${r.T} steps)` : `place in the period (${r.T} steps)`}CLOCKX. Inputs: ${lb.join(', ')} lags${capped ? ' (capped at 500 past values)' : short ? ' (period under 8 steps: up to 32 past values)' : ' (one tenth, a quarter, half or all of one period)'}.`;
     $('lbUnit').textContent = none || capped || short ? '(lags)' : '(periods)';
-    if (lb) [...$('lbFix').options].forEach((o, i) => { o.textContent = none || capped || short ? `${lb[i]} lag${lb[i] > 1 ? 's' : ''}` : `${['0.5', '1', '1.5', '2'][i]} period${i >= 2 ? 's' : ''} = ${lb[i]} lags`; });
-    $('optInL').textContent = none || short ? `Inputs: ${lb.join(', ')} lags` : capped ? `Inputs: ${lb.join(', ')} lags` : 'Inputs: 0.5, 1, 1.5, 2 periods';
+    if (lb) [...$('lbFix').options].forEach((o, i) => { o.textContent = none || capped || short ? `${lb[i]} lag${lb[i] > 1 ? 's' : ''}` : `${['1/10', '1/4', '1/2', '1'][i]} period = ${lb[i]} lag${lb[i] > 1 ? 's' : ''}`; });
+    $('optInL').textContent = none || short ? `Inputs: ${lb.join(', ')} lags` : capped ? `Inputs: ${lb.join(', ')} lags` : 'Inputs: 1/10, 1/4, 1/2, 1 period';
     syncAnnual();
     // the clock inputs actually given to the AR and the ELMs: sin/cos of the hour, plus the week and the day in the year when ticked
     const extra = (!none && !r.error ? [$('weekly').checked ? ' + day of the week (1 to 7)' : '', $('annual').checked ? ' + day of the year (365.25 days)' : ''] : []).join('');
@@ -315,7 +315,7 @@
   $('weekly').addEventListener('change', syncPeriod); $('annual').addEventListener('change', syncPeriod);
   $('Tquick').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; $('T').value = b.dataset.v; syncPeriod(); });
 
-  const EXAMPLES = { ghi: ['example-ghi.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).ghi, { scoreOn: 'day' }], edf: ['example.js?v=1.2.0', () => self.PRED_EXAMPLE, null], gti: ['example-gti.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).gti, { scoreOn: 'day' }], sunspots: ['example-sunspots.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).sunspots, null], eurusd: ['example-eurusd.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).eurusd, null], us10y: ['example-us10y.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).us10y, null], dkasc: ['example-dkasc.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).dkasc, { scoreOn: 'day' }] };
+  const EXAMPLES = { ghi: ['example-ghi.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).ghi, { scoreOn: 'day' }], edf: ['example.js?v=1.3.0', () => self.PRED_EXAMPLE, null], gti: ['example-gti.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).gti, { scoreOn: 'day' }], sunspots: ['example-sunspots.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).sunspots, null], eurusd: ['example-eurusd.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).eurusd, null], us10y: ['example-us10y.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).us10y, null], dkasc: ['example-dkasc.js?v=1.3.0', () => (self.PRED_EXAMPLES || {}).dkasc, { scoreOn: 'day' }] };
   const syncSolar = () => $('solarBox').classList.toggle('hidden', !$('solar').checked);
   $('solar').addEventListener('change', syncSolar);
   function setSolar(o) { $('solar').checked = !!o; if (o && o.scoreOn) $('solScore').value = o.scoreOn; if (o && o.cvOn) $('solCv').value = o.cvOn; syncSolar(); }
@@ -362,7 +362,7 @@
       train: L.values, test: F.values, models,
       cfg: { T, weekly: $('weekly').checked, annual: $('annual').checked, horizons: [h], lbOpts, pca: $('pca').checked, pcaVar: 0.95,
         opt: { inputs: $('optIn').checked, neurons: $('optNh').checked, ridge: $('optLam').checked, smooth: $('optSm').checked },
-        nhOpts: [10, 50, 100, 500], ncand: 30, ncandFixed: 30, // every ELM keeps the best of 30 random hidden layers, searched settings or not (Cyril, 2026-11-25)
+        nhOpts: [10, 50, 100, 500], ncand: 5, ncandFixed: 5, // every ELM keeps the best of 5 random hidden layers, for each input size tried when searched (Cyril, 2026-11-26: 30 made runs 6 to 30 times longer)
         lbFixed: lbOpts[+$('lbFix').value], nhFixed: +$('nhFix').value, lamFixed: +$('lamFix').value,
         act: $('act').value, qlo, qhi, bandKind: $('bandKind').value, bandAsym: $('asym').checked, bandPhase: $('bandPhase').checked, norm: radio('norm'), prep: radio('prep'), clip: $('clip').checked, solar: solarCfg(), seed: 42, folds: 5 },
     };
@@ -385,7 +385,7 @@
     job = nj; result = null; ran = API.snapshot(); $('results').classList.add('hidden'); $('kpis').innerHTML = ''; $('err').classList.remove('on'); // nothing from the previous run stays on screen
     $('go').disabled = true; $('stop').disabled = false; $('barfill').style.width = '0';
     $('status').textContent = 'Starting…'; t0 = performance.now();
-    try { worker = new Worker('worker.js?v=1.2.0'); } catch (e) { reset(); return fail('Open this page through a web server (not as a local file) so that the computation can run in the background.'); }
+    try { worker = new Worker('worker.js?v=1.3.0'); } catch (e) { reset(); return fail('Open this page through a web server (not as a local file) so that the computation can run in the background.'); }
     worker.onmessage = e => {
       const m = e.data;
       if (m.type === 'progress') { $('barfill').style.width = (100 * m.f).toFixed(1) + '%'; $('status').textContent = `${Math.round(100 * m.f)} % · ${m.text}`; }
@@ -461,7 +461,7 @@
       return `<div class="kpi" style="--c:${COLORS[k]}">${s.nrmse === bn ? '<span class="crown">best nRMSE</span>' : ''}<div class="nm">${name}</div>
         <div class="big">${fmt(s.nrmse, 'nrmse')}<small>nRMSE</small></div>
         <div class="row"><span>R²</span><b>${fmt(s.r2)}</b></div>
-        <div class="row"><span>NICE² <small>(vs persistence)</small></span><b>${fmt(s.nice2)}</b></div>
+        <div class="row"><span>NICE² <small>(vs persistence)</small></span>${s.nice2 >= 1 ? `<b class="poor" title="NICE ≥ 1: no better than persistence">${fmt(s.nice2)}*</b>` : `<b>${fmt(s.nice2)}</b>`}</div>${s.nice2 >= 1 ? '<div class="row poor-note">* Not reliable: no better than persistence on this series</div>' : ''}
         <div class="row"><span>PICP (target ${(job.cfg.qhi - job.cfg.qlo).toFixed(2)})</span><b>${fmt(s.picp, 'picp')}</b></div>
         <div class="row"><span>CRPS</span><b>${fmt(s.crps)}</b></div>${settings(id, m)}</div>`;
     }).join('');
@@ -478,10 +478,12 @@
     $('met').innerHTML = '<thead><tr><th>Model</th>' + C.map(c => `<th title="${c[5].replace(/"/g, '&quot;')}">${c[1]}${c[2] ? `<small>${c[2] === 'target' ? 'target ' + target.toFixed(2) : c[2]}</small>` : ''}</th>`).join('') + '</tr></thead><tbody>' +
       R.map(([name, s, k]) => `<tr${k === null ? ' class="ref"' : ''}><td>${k === null ? name : `<span class="sw" style="background:${COLORS[k]}"></span>${name}`}</td>` + C.map(c => {
         if (k === null && c[3] === 'prob') return '<td>–</td>';
-        return `<td${k !== null && s[c[0]] === b[c[0]] ? ' class="best"' : ''}>${fmt(s[c[0]], c[0])}</td>`;
+        // NICE ≥ 1 (Cyril, 2026-11-26): the model does no better than persistence; red with an asterisk, explained under the table
+        const poor = k !== null && /^nice/.test(c[0]) && s[c[0]] >= 1;
+        return `<td${k !== null && s[c[0]] === b[c[0]] ? ' class="best"' : poor ? ' class="poor"' : ''}>${fmt(s[c[0]], c[0])}${poor ? '*' : ''}</td>`;
       }).join('') + '</tr>').join('') + '</tbody>';
-    const h = H();
-    $('chosen').innerHTML = `${job.cfg.norm === 'none' ? 'Errors shown in the units of the series.' : 'Normalized errors are fractions. See the notes for any change to the requested scale.'} ${job.cfg.prep === 'center' ? 'Series centred before modelling. ' : job.cfg.prep === 'standard' ? 'Series centred and scaled before modelling. ' : job.cfg.prep === 'profile' ? 'Mean profile removed before modelling and added back to forecasts and intervals. ' : ''}${Math.round(100 * target)} % ${job.cfg.bandKind === 'gaussian' ? 'Gaussian' : job.cfg.bandAsym ? 'asymmetric conformal-style' : 'symmetric conformal-style'} intervals. Best value in bold. Hover a column name for its definition.<br><b>Settings kept</b> — ` +
+    const h = H(), anyPoor = M.some(r => C.some(c => /^nice/.test(c[0]) && r[1][c[0]] >= 1));
+    $('chosen').innerHTML = `${anyPoor ? '<b class="poor">* NICE ≥ 1: not reliable.</b> The model does no better than persistence (repeating the last value) on this series. ' : ''}${job.cfg.norm === 'none' ? 'Errors shown in the units of the series.' : 'Normalized errors are fractions. See the notes for any change to the requested scale.'} ${job.cfg.prep === 'center' ? 'Series centred before modelling. ' : job.cfg.prep === 'standard' ? 'Series centred and scaled before modelling. ' : job.cfg.prep === 'profile' ? 'Mean profile removed before modelling and added back to forecasts and intervals. ' : ''}${Math.round(100 * target)} % ${job.cfg.bandKind === 'gaussian' ? 'Gaussian' : job.cfg.bandAsym ? 'asymmetric conformal-style' : 'symmetric conformal-style'} intervals. Best value in bold. Hover a column name for its definition.<br><b>Settings kept</b> — ` +
       live(h).map(id => { const c = h.models[id].chosen; const p = Object.entries(c).filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => `${k} ${typeof v === 'number' ? +v.toPrecision(4) : v}`).join(', '); return `${E.MODELS[id].name}${p ? ': ' + p : ': no setting'}`; }).join(' · ');
   }
 
@@ -688,7 +690,7 @@
   // ---------- jobs from outside (API.md): #job= link, .json file (opened or dropped). ?job=<url> and postMessage removed (Cyril, 13 Nov. 2026): automation goes through FrugalCast Local ----------
   // Everything is computed here, in the visitor's browser. The #fragment of a URL is never sent to the server.
   const SITE = 'https://frugalcast.cyrilvoyant.com/';   // provisional address, until Cyril chooses the subdomain
-  const CITE = `Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.2.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717`;
+  const CITE = `Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.3.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717`;
   const API = (() => {
     let via = null, asked = false;
     const enc = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
