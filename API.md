@@ -38,8 +38,8 @@ Every field is optional. A **settings file** has no `learn` and no `forecast`: i
 | `learn` | array of numbers (or one string, one value per line) | Learning series: at most **50,000** values in a job file or link (10,000 when pasted by hand). Fits, choices of settings and intervals all come from it. |
 | `forecast` | array of numbers | Series to forecast: at most **50,000** values in a job file or link (10,000 when pasted by hand). It follows `learn` directly, with the same time step. It supplies the observed targets for evaluation. At each forecast origin, test values already observed can also be used as inputs; future values are not used. |
 | `period` | whole number of steps, or `"none"` | Steps per period (24 for hourly data with a daily cycle). `"none"`: no clock inputs; cyclic models are set aside. |
-| `weekly` | true / false | Position in the week (sine and cosine) as two extra inputs of the AR and the ELMs (needs a period). |
-| `annual` | true / false | Day of the year (sine and cosine) as two extra inputs of the AR and the ELMs; the PAR works on the gap to the average year (mean of each hour of each calendar day over the years; TMY in the paper, Eq. 6). Needs one period = one day and at least two years of learning data (5 for the PAR); a job that asks for it otherwise is refused. |
+| `weekly` | true / false | Day of the week (1 to 7, counted from the first day of the learning series; sine and cosine) as two extra inputs of the AR and the ELMs (needs a period of one day; the learning series holds whole weeks). |
+| `annual` | true / false | Day of the year (sine and cosine) as two extra inputs of the AR and the ELMs; the PAR works on the gap to the average year (mean of each hour of each calendar day over the years; TMY in the paper, Eq. 6). Needs one period = one day and at least one year of learning data (5 for the PAR); a job that asks for it otherwise is refused. |
 | `horizon` | 1 to 100 | Lead time in steps (lags). |
 | `models` | exactly 4 ids | See § 4. |
 | `search` | `inputs`, `neurons`, `ridge`, `smooth`: true / false | Settings chosen by temporal cross-validation; `ridge: true` means λ of the ELM ridge by generalised cross-validation (GCV, Golub, Heath and Wahba 1979) in each fit. A searched setting cannot also be fixed. |
@@ -134,7 +134,7 @@ The page is meant to be used by a person, with up to 50,000 values in a job. For
 
 The tool is free for research, teaching and any non-commercial use, provided you cite it:
 
-> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.1.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
+> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.2.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
 
 Cite the papers of the models you use as well. After a job opened from a file or a link, the page offers a `.bib` file with the papers of the four models.
 

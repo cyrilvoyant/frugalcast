@@ -67,6 +67,7 @@
   const MDEF = Object.fromEntries(MET.map(m => [m[0], m]));
   let picked = store.get('metrics', ['rmse', 'nrmse', 'nmae', 'r2', 'nice1', 'niceS', 'picp', 'mil', 'wink', 'crps']).filter(k => MDEF[k]);
   let worker = null, result = null, job = null, ran = null, t0 = 0; // ran: the settings actually run, frozen at the click
+  let filledNote = ''; // note left in the learning check by the last gap filling
   let maxLearn = 10000;   // pasted by hand; a job sent through the API may hold up to 50,000 values (API.md)
 
   // ---------- model pickers, references, metric list ----------
@@ -147,6 +148,7 @@
     if (!raw.trim()) return null;
     const D = splitDates(raw), text = D ? D.text : raw;
     const lines = text.replace(/\r\n?/g, '\n').split('\n');
+    let gapCount = 0;
     let last = lines.length - 1; while (last > 0 && !lines[last].trim()) last--;
     let first = 0; while (first < last && !lines[first].trim()) first++;
     const empty = []; for (let i = first; i <= last; i++) if (!lines[i].trim()) empty.push(i + 1);
@@ -161,7 +163,7 @@
     if (D) {
       checks.push([!D.multi.length, 'One value after each date', `Line ${ln(D.multi)}: several values after the date; keep only the date and one value.`]);
       checks.push([!D.blank.length, 'A value after each date', `Line ${ln(D.blank)}: a date without its value. Put a number (0, the previous value or a mean).`]);
-      checks.push([!D.invalid.length, 'Every date exists', `Line ${ln(D.invalid)}: this date or time does not exist (30 February, 24:00, 10:75…).`]);
+      checks.push([!D.invalid.length, 'Every date written is a real calendar date (no 30 February, no 24:00)', `Line ${ln(D.invalid)}: this date or time does not exist (30 February, 24:00, 10:75…).`]);
       if (!D.invalid.length) {
         const S = stamps(D.dates), t = S.t, cnt = new Map(), bad = [], gaps = [], odd = [];
         for (let i = 1; i < t.length; i++) { const x = t[i] - t[i - 1]; if (x > 0) cnt.set(x, (cnt.get(x) || 0) + 1); }
@@ -170,15 +172,9 @@
         notes.push(`ℹ Dates read: ${D.dates[0].s} to ${D.dates[D.dates.length - 1].s}${step ? `, one line per ${stepName(step, S.monthly)}` : ''}. Only the values are used by the models.`);
         checks.push([!bad.length, 'Dates in increasing order, no duplicate', `Line ${ln(bad)}: date not after the previous one (duplicate or out of order; a clock change in local time?).`]);
         if (step) checks.push([!odd.length, `Same time step everywhere (${stepName(step, S.monthly)})`, `Line ${ln(odd)}: the time since the previous line is not a whole number of steps (one step = one ${stepName(step, S.monthly)}). Use one time step for the whole series.`]);
+        gapCount = !bad.length && !odd.length ? gaps.length : 0;
         const g0 = gaps[0], gtxt = gaps.length ? `${gaps.length.toLocaleString('en')} gap${gaps.length > 1 ? 's' : ''}, the first after line ${D.dates[g0].line} (${D.dates[g0].s} → ${D.dates[g0 + 1].s})` : '';
-        if (T) checks.push([!gaps.length, 'No gap: one line for every time step', `${gtxt}: add one line per missing step, with a number (0, the previous value or a mean), so that the phase stays right.`]);
-        else if (gaps.length) notes.push(`ℹ ${gtxt}. No period is declared, so the phase does not matter: if no value exists on those dates (weekends, holidays), this is fine.`);
-        if (id === 'learn' && T && step) {
-          const m = D.dates[0].m, hm = +(m[4] || 0) * 60 + +(m[5] || 0), k = (1440 - hm) / step;
-          if (!S.monthly && step * T === 1440) checks.push([hm === 0, 'Starts at the beginning of a day (00:00)', `First value at ${m[4]}:${m[5]}: with a daily cycle, the first line should be at 00:00 (in the clock of your dates)${Number.isInteger(k) ? `; remove the first ${k} line${k > 1 ? 's' : ''}` : ''}.`]);
-          else if (S.monthly && step === 1 && T === 12) checks.push([m[2] === '01', 'Starts in January (yearly cycle)', `First value in month ${m[2]}: with a yearly cycle, the first line should be a January; remove the first ${13 - +m[2]} lines.`]);
-          else notes.push('ℹ Start of the period not checked for this period and time step.');
-        }
+        checks.push([!gaps.length, 'No gap: one line for every time step', `${gtxt}: fill them with one of the two buttons below (previous value or mean), or add one line per missing step with a number, so that every step has its line.`]);
         if (id === 'fore' && step) {
           const L = splitDates($('learn').value);
           if (L && !L.invalid.length) {
@@ -187,14 +183,22 @@
               const gap = t[0] - SL.t[SL.t.length - 1], okc = gap === step, msg = `The learning series ends at ${L.dates[L.dates.length - 1].s} and this one starts at ${D.dates[0].s}`;
               if (T) checks.push([okc, 'Follows the learning series with no step missing', `${msg}: it should start one step later.`]);
               else if (!okc) notes.push(`ℹ ${msg}.`);
+              if (T) { const k = (t[0] - SL.t[0]) / step; checks.push([Number.isInteger(k) && k % T === 0, `Starts at the same phase as the learning series (${D.dates[0].s} and ${L.dates[0].s})`, `The learning series starts at ${L.dates[0].s} and this one at ${D.dates[0].s}: not the same phase of the period (with a daily cycle, not the same hour). The hour inputs (sine, cosine) would be shifted and every score would be wrong.`]); }
             }
           }
         }
       }
     }
+    if (id === 'learn' && T >= 2 && v.length) { // same phase for both series: the learning series holds whole periods (whole weeks with the week ticked), so the series to forecast starts at the same phase
+      const wk = $('weekly').checked, P = wk ? 7 * T : T, k = v.length % P, unit = wk ? 'weeks' : 'periods';
+      checks.push([!k, `Whole ${unit} (${Math.floor(v.length / P).toLocaleString('en')} × ${P} values), so both series start at the same phase${wk ? ' and on the same day of the week' : ''}`, `${v.length.toLocaleString('en')} values = ${Math.floor(v.length / P).toLocaleString('en')} ${unit} of ${P} + ${k}: the series to forecast would not start at the same phase${wk ? ' and day of the week' : ''} as this one, and every score would be wrong. Move the last ${k} value${k > 1 ? 's' : ''} to the start of the series to forecast (or delete ${k > 1 ? 'them' : 'it'}).`]);
+    }
+    if (T >= 2 && !D) notes.push(`⚠ Same phase, to check yourself: without dates, the page cannot see the hours. The first value of the learning series and the first value of the series to forecast must be at the same phase of the period${T >= 24 && 1440 % T === 0 ? ' (with a daily cycle: the same hour, for instance both at 00:00)' : ''}. Otherwise the hour inputs (sine, cosine) are shifted and every score is wrong.`);
+    else if (id === 'fore' && T >= 2) notes.push(`ℹ Same phase: this series must start at the same phase as the learning series${T >= 24 && 1440 % T === 0 ? ' (the same hour with a daily cycle)' : ''}, right after its last value.`);
     if (v.length && Math.min(...v) < 0) notes.push('ℹ Some values are negative: the three ELMs that take a logarithm will be set aside.');
     if (!D) notes.push('ℹ No date column: gaps and the start of the period cannot be checked here. Optional: put the date before each value (2026-06-01T10:00;412.5).');
-    return { checks, notes, v, ok: checks.every(c => c[0]) };
+    if (id === 'learn' && filledNote) notes.unshift(filledNote);
+    return { checks, notes, v, ok: checks.every(c => c[0]), gaps: gapCount };
   }
   function qc(id) {
     const box = $('qc-' + id), A = analyse(id);
@@ -202,17 +206,61 @@
     if (!A) { box.hidden = true; return; }
     const h = document.createElement('b'); h.textContent = A.ok ? `Data check: OK (${A.v.length.toLocaleString('en')} values)` : 'Data check: to fix'; box.append(h);
     for (const [pass, label, why] of A.checks) { const p = document.createElement('div'); p.className = pass ? 'ok' : 'ko'; p.textContent = (pass ? '✓ ' : '✗ ') + (pass ? label : why); box.append(p); }
-    for (const n of A.notes) { const p = document.createElement('div'); p.className = 'info'; p.textContent = n; box.append(p); }
+    for (const n of A.notes) { const p = document.createElement('div'); p.className = n.startsWith('⚠') ? 'warn' : 'info'; p.textContent = n; box.append(p); }
+    if (A.gaps) {
+      const row = document.createElement('div'); row.className = 'fill';
+      row.append(document.createTextNode('Fill the gaps of both series, one line per step: '));
+      for (const [mode, text] of [['prev', 'with the previous value'], ['mean', 'with the mean of the values before and after']]) {
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = text; b.addEventListener('click', () => fillGaps(mode)); row.append(b, ' ');
+      }
+      const why = document.createElement('small'); why.textContent = ' The added values are not measurements: they only keep the time grid regular.'; row.append(why);
+      box.append(row);
+    }
     box.classList.toggle('bad', !A.ok); box.hidden = false;
   }
-  // annual cycle: only when one period can be one day (T >= 24) and the learning series covers two years
-  function annualNeed() { const r = readT(); return !r.error && r.T >= 24 ? 730 * r.T : 0; }
+  // fills every missing step of the two series (and between them) on their common time grid, then cuts the learning series
+  // into whole periods (whole weeks for daily data) so that both series start at the same phase. Daily data get the period 7.
+  function fillGaps(mode) {
+    const L = splitDates($('learn').value), F = $('fore').value.trim() ? splitDates($('fore').value) : null;
+    if (!L || L.invalid.length || L.multi.length || L.blank.length || F && (F.invalid.length || F.multi.length || F.blank.length)) return fail('Fill the gaps: first correct the dates marked ✗ in the data check.');
+    const dates = F ? [...L.dates, ...F.dates] : L.dates;
+    const vl = E.parse(L.text, 'Learning series'), vf = F ? E.parse(F.text, 'Series to forecast') : { values: [] };
+    if (vl.error || vf.error) return fail('Fill the gaps: ' + (vl.error || vf.error));
+    const y = [...vl.values, ...vf.values];
+    if (y.length !== dates.length) return fail('Fill the gaps: every date needs one value first.');
+    const S = stamps(dates), t = S.t, cnt = new Map();
+    for (let i = 1; i < t.length; i++) { const x = t[i] - t[i - 1]; if (x > 0) cnt.set(x, (cnt.get(x) || 0) + 1); }
+    const step = [...cnt].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (!step) return fail('Fill the gaps: at least two dates are needed.');
+    for (let i = 1; i < t.length; i++) if (t[i] <= t[i - 1] || (t[i] - t[i - 1]) % step) return fail(`Fill the gaps: at ${dates[i].s} the dates are not in order or not on a ${stepName(step, S.monthly)} grid; correct this first.`);
+    const m0 = dates[0].m, off = offMin(m0[7]), p2 = n => String(n).padStart(2, '0');
+    const fmt = x => {
+      if (S.monthly) return `${Math.floor(x / 12)}-${p2(x % 12 + 1)}`;
+      const d = new Date((x + off) * 60000), day = `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
+      return m0[4] === undefined ? day : `${day}T${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}${m0[6] !== undefined ? ':' + p2(d.getUTCSeconds()) : ''}${m0[7] || ''}`;
+    };
+    const out = [], lastLearn = t[L.dates.length - 1]; let added = 0, nL = 0;
+    for (let i = 0; i < t.length; i++) {
+      if (i) for (let x = t[i - 1] + step; x < t[i]; x += step) { out.push([fmt(x), mode === 'prev' ? y[i - 1] : +((y[i - 1] + y[i]) / 2).toPrecision(12)]); added++; if (x < lastLearn) nL++; }
+      out.push([dates[i].s, y[i]]); if (t[i] <= lastLearn) nL++;
+    }
+    let note = `ℹ Filled: ${added.toLocaleString('en')} line${added > 1 ? 's' : ''} added ${mode === 'prev' ? 'with the previous value' : 'with the mean of the values before and after'}.`;
+    if (!S.monthly && step === 1440 && !readT().error && readT().T === 0) { $('T').value = '7'; note += ' One value per day now: period set to 7 (the week).'; }
+    const r = readT(), P = r.error || !r.T ? 1 : r.T * ($('weekly').checked ? 7 : 1), keep = Math.floor(nL / P) * P;
+    if (keep < nL) note += ` The last ${nL - keep} learning line${nL - keep > 1 ? 's' : ''} moved to the start of the series to forecast (whole periods, same phase).`;
+    $('learn').value = out.slice(0, keep).map(([s, v]) => s + ';' + v).join(String.fromCharCode(10));
+    $('fore').value = out.slice(keep).map(([s, v]) => s + ';' + v).join(String.fromCharCode(10));
+    filledNote = note;
+    syncPeriod(); count('learn', 'nlearn'); count('fore', 'nfore');
+  }
+  // annual cycle: only when one period is one day and the learning series covers one year (Cyril, 2026-11-25; was two years)
+  function annualNeed() { const r = readT(); return !r.error && r.T >= 24 && 1440 % r.T === 0 ? 365 * r.T : 0; } // the day of the year is j / T: only when one period is one day (24, 48, 96, 288… steps)
   function syncAnnual() {
     const need = annualNeed(), ok = need > 0 && learnN >= need;
     $('annualL').classList.toggle('off', !ok); if (!ok) $('annual').checked = false;
-    $('annualWhy').textContent = ok ? '' : need ? `(needs two years of learning data: ${need.toLocaleString('en')} values)` : '(needs one period = one day: 24, 48 or 96 steps)';
+    $('annualWhy').textContent = ok ? '' : need ? `(needs one year of learning data: ${need.toLocaleString('en')} values)` : '(needs one period = one day: 24, 48 or 96 steps)';
   }
-  $('learn').addEventListener('input', () => { maxLearn = 10000; count('learn', 'nlearn'); });
+  $('learn').addEventListener('input', () => { maxLearn = 10000; filledNote = ''; count('learn', 'nlearn'); });
   $('fore').addEventListener('input', () => count('fore', 'nfore'));
   function syncSearch() {
     const any = $('optIn').checked || $('optNh').checked || $('optLam').checked;
@@ -254,16 +302,20 @@
     const lb = r.error ? null : E.inputOptions(r.T), capped = !r.error && 2 * r.T > 500, short = !r.error && r.T > 0 && r.T < 8;
     $('Thint').textContent = r.error ? 'Enter a whole number of steps, or none.' : none
       ? 'Non-periodic: no clock inputs; cyclic models are set aside. Inputs: 8, 16, 24 or 32 lags (no period, so no natural scale: up to 32 past values).'
-      : `Clock inputs: sin/cos of the phase over ${r.T} steps. Inputs: ${lb.join(', ')} lags${capped ? ' (capped at 500 past values)' : short ? ' (period under 8 steps: up to 32 past values)' : ' (0.5 to 2 periods)'}.`;
+      : `Clock inputs (sine and cosine): ${r.T >= 24 && 1440 % r.T === 0 ? `hour of the day (${r.T} steps)` : `place in the period (${r.T} steps)`}CLOCKX. Inputs: ${lb.join(', ')} lags${capped ? ' (capped at 500 past values)' : short ? ' (period under 8 steps: up to 32 past values)' : ' (0.5 to 2 periods)'}.`;
     $('lbUnit').textContent = none || capped || short ? '(lags)' : '(periods)';
     if (lb) [...$('lbFix').options].forEach((o, i) => { o.textContent = none || capped || short ? `${lb[i]} lag${lb[i] > 1 ? 's' : ''}` : `${['0.5', '1', '1.5', '2'][i]} period${i >= 2 ? 's' : ''} = ${lb[i]} lags`; });
     $('optInL').textContent = none || short ? `Inputs: ${lb.join(', ')} lags` : capped ? `Inputs: ${lb.join(', ')} lags` : 'Inputs: 0.5, 1, 1.5, 2 periods';
     syncAnnual();
+    // the clock inputs actually given to the AR and the ELMs: sin/cos of the hour, plus the week and the day in the year when ticked
+    const extra = (!none && !r.error ? [$('weekly').checked ? ' + day of the week (1 to 7)' : '', $('annual').checked ? ' + day of the year (365.25 days)' : ''] : []).join('');
+    $('Thint').textContent = $('Thint').textContent.replace('CLOCKX', extra);
   }
   $('T').addEventListener('input', syncPeriod);
+  $('weekly').addEventListener('change', syncPeriod); $('annual').addEventListener('change', syncPeriod);
   $('Tquick').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; $('T').value = b.dataset.v; syncPeriod(); });
 
-  const EXAMPLES = { ghi: ['example-ghi.js', () => (self.PRED_EXAMPLES || {}).ghi, { scoreOn: 'day' }], edf: ['example.js', () => self.PRED_EXAMPLE, null], gti: ['example-gti.js', () => (self.PRED_EXAMPLES || {}).gti, { scoreOn: 'day' }], sunspots: ['example-sunspots.js?v=1.1.0', () => (self.PRED_EXAMPLES || {}).sunspots, null], eurusd: ['example-eurusd.js?v=1.1.0', () => (self.PRED_EXAMPLES || {}).eurusd, null], us10y: ['example-us10y.js?v=1.1.0', () => (self.PRED_EXAMPLES || {}).us10y, null], dkasc: ['example-dkasc.js?v=1.1.0', () => (self.PRED_EXAMPLES || {}).dkasc, { scoreOn: 'day' }] };
+  const EXAMPLES = { ghi: ['example-ghi.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).ghi, { scoreOn: 'day' }], edf: ['example.js?v=1.2.0', () => self.PRED_EXAMPLE, null], gti: ['example-gti.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).gti, { scoreOn: 'day' }], sunspots: ['example-sunspots.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).sunspots, null], eurusd: ['example-eurusd.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).eurusd, null], us10y: ['example-us10y.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).us10y, null], dkasc: ['example-dkasc.js?v=1.2.0', () => (self.PRED_EXAMPLES || {}).dkasc, { scoreOn: 'day' }] };
   const syncSolar = () => $('solarBox').classList.toggle('hidden', !$('solar').checked);
   $('solar').addEventListener('change', syncSolar);
   function setSolar(o) { $('solar').checked = !!o; if (o && o.scoreOn) $('solScore').value = o.scoreOn; if (o && o.cvOn) $('solCv').value = o.cvOn; syncSolar(); }
@@ -271,8 +323,9 @@
     const [file, get, sol] = EXAMPLES[key || $('exsel').value] || EXAMPLES.ghi;
     const load = () => {
       const x = get();
-      const dl = (v, d) => d ? v.map((y, i) => d[i] + ';' + y) : v; $('learn').value = dl(x.learn, x.dates && x.dates.learn).join('\n'); $('fore').value = dl(x.forecast, x.dates && x.dates.forecast).join('\n'); $('T').value = x.T; syncPeriod();
-      $('weekly').checked = x.weekly; setSolar(sol); $('exlabel').textContent = x.label; count('learn', 'nlearn'); count('fore', 'nfore'); then && then();
+      filledNote = '';
+      const dl = (v, d) => d ? v.map((y, i) => d[i] + ';' + y) : v; $('learn').value = dl(x.learn, x.dates && x.dates.learn).join('\n'); $('fore').value = dl(x.forecast, x.dates && x.dates.forecast).join('\n'); $('T').value = x.T; $('weekly').checked = !!x.weekly; $('annual').checked = !!x.annual; syncPeriod(); // the example's cycles before the hint is written
+      setSolar(sol); $('exlabel').textContent = x.label; count('learn', 'nlearn'); count('fore', 'nfore'); then && then();
     };
     if (get()) return load();
     const s = document.createElement('script'); s.src = file; s.onload = load; document.head.append(s);
@@ -332,7 +385,7 @@
     job = nj; result = null; ran = API.snapshot(); $('results').classList.add('hidden'); $('kpis').innerHTML = ''; $('err').classList.remove('on'); // nothing from the previous run stays on screen
     $('go').disabled = true; $('stop').disabled = false; $('barfill').style.width = '0';
     $('status').textContent = 'Starting…'; t0 = performance.now();
-    try { worker = new Worker('worker.js?v=1.1.0'); } catch (e) { reset(); return fail('Open this page through a web server (not as a local file) so that the computation can run in the background.'); }
+    try { worker = new Worker('worker.js?v=1.2.0'); } catch (e) { reset(); return fail('Open this page through a web server (not as a local file) so that the computation can run in the background.'); }
     worker.onmessage = e => {
       const m = e.data;
       if (m.type === 'progress') { $('barfill').style.width = (100 * m.f).toFixed(1) + '%'; $('status').textContent = `${Math.round(100 * m.f)} % · ${m.text}`; }
@@ -635,7 +688,7 @@
   // ---------- jobs from outside (API.md): #job= link, .json file (opened or dropped). ?job=<url> and postMessage removed (Cyril, 13 Nov. 2026): automation goes through FrugalCast Local ----------
   // Everything is computed here, in the visitor's browser. The #fragment of a URL is never sent to the server.
   const SITE = 'https://frugalcast.cyrilvoyant.com/';   // provisional address, until Cyril chooses the subdomain
-  const CITE = `Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.1.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717`;
+  const CITE = `Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.2.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717`;
   const API = (() => {
     let via = null, asked = false;
     const enc = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
@@ -663,7 +716,7 @@
       if (j.period !== undefined) $('T').value = j.period === null || j.period === 0 ? 'none' : String(j.period);
       syncPeriod();
       if (j.weekly !== undefined) $('weekly').checked = !!j.weekly;
-      if (j.annual) { const need = annualNeed(); if (!(need > 0 && learnN >= need)) throw new Error(need ? `"annual" needs two years of learning data: at least ${need.toLocaleString('en')} values` : '"annual" needs one period = one day (24, 48 or 96 steps, for instance)'); }
+      if (j.annual) { const need = annualNeed(); if (!(need > 0 && learnN >= need)) throw new Error(need ? `"annual" needs one year of learning data: at least ${need.toLocaleString('en')} values` : '"annual" needs one period = one day (24, 48 or 96 steps, for instance)'); }
       if (j.annual !== undefined) $('annual').checked = !!j.annual;
       if (j.horizon !== undefined) { if (!(Number.isInteger(+j.horizon) && +j.horizon >= 1 && +j.horizon <= 100)) throw new Error('"horizon" must be a whole number from 1 to 100'); $('horizon').value = String(+j.horizon); }
       if (j.models) {

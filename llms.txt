@@ -36,7 +36,7 @@ Settings-only link (no data; the user pastes the series or clicks "Try it with t
 
 ## Protocol (fixed, identical for all models)
 
-- Issue time t, inputs = last values (standardized with the learning series; optional PCA keeping 95 % of variance) + sin/cos of the target phase when the series has a period; target = value h steps later (h = 1 to 100).
+- Issue time t, inputs = last values (standardized with the learning series; optional PCA keeping 95 % of variance) + sin/cos of the target phase when the series has a period (hour of the day for a daily cycle), + sin/cos of the day of the week (1 to 7, "weekly" ticked), + sin/cos of the day of the year (365.25 days, "annual" ticked; needs one year of learning data); days are counted from the first learning value; target = value h steps later (h = 1 to 100).
 - Inputs of the AR, ARMA and ELMs: 1/4, 1/2, 3/4 or all of M past values, chosen by cross-validation, with M = min(2 periods, 500) (0.5, 1, 1.5 or 2 periods while 2 periods <= 500), or M = 32 without a period or when the period is under 8 steps (8, 16, 24 or 32 lags).
 - Settings chosen by expanding-window temporal cross-validation on the learning series (5 blocks, 4 folds), then refitted on the whole learning series. A forecast uses observations available at its issue time.
 - For solar data, preserve every time step. Positive observed targets can be selected for scoring. With the solar option, forecasts are written as 0 where the observation is 0 (not causal, retrospective view); in real use the night filtering is the user's job. Scores on positive observed targets do not depend on this rule.
@@ -70,7 +70,7 @@ Free for research, teaching and any non-commercial use, provided the tool is cit
 
 ## Cite
 
-- The tool: Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.1.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
+- The tool: Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.2.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
 - Benchmarks (PER, CLIM, CLIPER, ES, ARTU): Voyant et al. (2022), Renewable Energy 191, 747–762, https://doi.org/10.1016/j.renene.2022.04.065
 - NICE^k metrics: Voyant et al. (2025), Sustainable Energy Technologies and Assessments 83, 104588, https://doi.org/10.1016/j.seta.2025.104588
 - BLEND and periodically correlated processes: Voyant et al. (2026), Applied Mathematical Modelling 157, 116988, https://doi.org/10.1016/j.apm.2026.116988
@@ -93,7 +93,7 @@ Each one loads its series, its period and its solar setting (your other settings
 
 - No gap: one value per time step, night included, same step everywhere. A measurement is missing: put a number (0, the previous value or a mean), so that the line still exists.
 - No missing value: no NaN, NA or empty line (the page refuses them and says which line).
-- Right start: the learning series begins at the start of a period (hourly data with a daily cycle: the 00:00 hour, in the clock chosen), so the phase is right for the cyclic models, time inputs and per-phase intervals; the series to forecast continues it from the very next step.
+- Same phase: both series start at the same phase of the period (with a daily cycle: the same hour, any hour). The phase of a value comes only from its position, so the learning series holds whole periods and the series to forecast continues it from the very next step; otherwise the cyclic models, the time inputs (sine, cosine) and the per-phase intervals are shifted and every score is wrong. The page checks that the learning series holds whole periods and, with dates, that both series start at the same phase.
 - Optional date column: each pasted line may start with its date, "date;value" or date<TAB>value (ISO 8601: 2026-06-01T10:00, with or without offset, 2026-06-01, or 2026-06 for months). Only the values go to the models; the dates let the page check the order, duplicates, gaps, the start of the period and the continuity between the two series. A data check (passed or what to fix) appears under each box as soon as data are pasted.
 
 Unbounded results: JSON exports use the strings "Infinity" and "-Infinity", with explanatory score notes and interval metadata; CSV preserves Infinity/-Infinity. Do not interpret these values as finite margins or missing data.

@@ -308,7 +308,7 @@
     const T = ctx.T, c = ctx.cfg, f = [];
     if (T >= 2) { const a = 2 * Math.PI * (j % T) / T; f.push(Math.sin(a), Math.cos(a)); }
     if (T < 2) return f; // non-periodic series: no time features
-    if (c.weekly) { const a = 2 * Math.PI * (j % (7 * T)) / (7 * T); f.push(Math.sin(a), Math.cos(a)); }
+    if (c.weekly) { const a = 2 * Math.PI * (Math.floor(j / T) % 7) / 7; f.push(Math.sin(a), Math.cos(a)); } // day of the week, 0 to 6 from the first day (Cyril, 2026-11-25: one value per day, not the hour in the week)
     if (c.annual) { const d = Math.floor(j / T) % 365.25, a = 2 * Math.PI * d / 365.25; f.push(Math.sin(a), Math.cos(a)); }
     return f;
   }

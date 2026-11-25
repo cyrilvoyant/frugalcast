@@ -22,9 +22,17 @@
 
 1. No gap: one value per time step, night included. A measurement is missing: put a number (0, the previous value or a mean), so that the line still exists.
 2. No missing value: no NaN, NA or empty line.
-3. Right start: the learning series begins at the start of a period (hourly data with a daily cycle: the 00:00 hour, in the clock you chose); the series to forecast continues it from the very next step.
+3. Same phase: both series start at the same hour (the same phase of the period). The learning series holds whole periods (whole days with a daily cycle) and the series to forecast continues it from the very next step; otherwise the hour inputs (sine, cosine) are shifted and every score is wrong.
 
 A data check appears under each box as soon as data are pasted. Each line may start with its date (`2026-06-01T10:00;412.5`): only the values go to the models, and the dates let the page also check rules 1 and 3.
+
+## What is new in 1.2.0
+
+- Same phase: both series start at the same hour (the same phase of the period). The data check refuses a learning series that is not whole periods (whole weeks when the week is ticked) and, with dates, a series to forecast that does not start at the same phase; without dates, a warning asks to check it. The examples are cut into whole days or weeks.
+- Week: the clock input is now the day of the week (1 to 7, sine and cosine), not the hour in the week. Results change when "weekly" is ticked.
+- Annual cycle (sine and cosine of the day of the year): one year of learning data is enough (was two).
+- Dated series with gaps (weekends, holidays): one click fills every missing step of both series with the previous value or the mean of the values around it; daily data then get the period 7.
+- Clock inputs written in full under the period (hour of the day, day of the week, day of the year).
 
 ## What is new in 1.1.0
 
@@ -47,6 +55,6 @@ The kit and programmatic access (API) are not available for now. To be told when
 
 Free for research, teaching and any other non-commercial use: code under [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/), texts under CC BY-NC 4.0 (see `LICENSE.md`). Please cite:
 
-> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.1.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
+> Voyant, C. (2026). FrugalCast: a browser benchmark of frugal forecasting models with prediction intervals (Version 1.2.0) [Software]. Mines Paris – PSL. https://doi.org/10.5281/zenodo.24197717
 
 Example data: hourly GHI in Kragujevac (Serbia), which contains modified Copernicus Atmosphere Monitoring Service information, 2026; EDF SEI open data, Corsica; GTI, Ajaccio; PV production, Alice Springs, from the [DimRed data set](https://stac.webservice-energy.org/collections/dimred) (Webservice-Energy STAC catalog, MINES Paris PSL), quality-checked data from the Desert Knowledge Australia Solar Centre; monthly sunspot number, WDC-SILSO, Royal Observatory of Belgium, Brussels (CC BY-NC 4.0); daily euro exchange rate, source: ECB statistics; daily US 10-year Treasury yield, source: Board of Governors of the Federal Reserve System (H.15) and U.S. Treasury.
