@@ -1,6 +1,6 @@
 /* The page starts one coordinator. That worker can run at most four independent
    model workers. Serial fallback uses exactly the same engine and result schema. */
-importScripts('kalpha.js?v=1.4.0', 'engine.js?v=1.4.0');
+importScripts('kalpha.js?v=1.4.1', 'engine.js?v=1.4.1');
 
 function run(job) {
   let last = 0;

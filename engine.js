@@ -1088,7 +1088,7 @@
      Rank outside 1..n means an unbounded tail; never silently cap that rank at n.
      Phases with <20 errors or insufficient ranks for the requested limits/99 centiles
      fall back to the global calibration group. No exchangeability guarantee is asserted. */
-  function band(pred, resid, qlo, qhi, clip, kind, scale, ph, asymmetric) {
+  function band(pred, resid, qlo, qhi, clip, kind, scale, ph, asymmetric, gkeep) {
     if (!resid.length || !resid.every(Number.isFinite)) throw new Error('Intervals need finite out-of-sample calibration errors.');
     const up = x => Math.ceil(x - 4 * Number.EPSILON * Math.max(1, Math.abs(x)));
     const down = x => Math.floor(x + 4 * Number.EPSILON * Math.max(1, Math.abs(x)));
@@ -1105,7 +1105,10 @@
       return { lo: Q(qlo), hi: Q(qhi), cent, Q, n, gm, gs };
     };
     const finite = g => Number.isFinite(g.lo) && Number.isFinite(g.hi) && g.cent.every(Number.isFinite);
-    const G = mk(resid), notes = {};
+    // gkeep (solar series, Cyril 2026-11-26): the GLOBAL group keeps only daytime errors (night zeros would narrow it);
+    // per-phase groups are unchanged, phases falling back to the global group get the daytime one
+    const gres = gkeep ? resid.filter((_, k) => gkeep[k]) : resid, dayOnly = !!gkeep && gres.length > 0;
+    const G = mk(dayOnly ? gres : resid), notes = {};
     let tab = null, cph = null, fallback = [];
     if (ph && ph.T >= 2 && ph.rph.length === resid.length) {
       const groups = Array.from({ length: ph.T }, () => []);
@@ -1122,7 +1125,7 @@
     const value = (i, offset) => clip(pred[i] + (sc[i] === 0 ? 0 : offset * sc[i]));
     return { lo: pred.map((_, i) => value(i, at(i).lo)), hi: pred.map((_, i) => value(i, at(i).hi)),
       cq: (i, k) => value(i, at(i).cent[k]), cent: tab ? tab.map(t => t.cent) : G.cent, cph, sc, rlo: G.lo, rhi: G.hi,
-      notes, mode, calibration: { source: 'temporal-out-of-fold-errors', n: resid.length, mode, fallbackPhases: fallback },
+      notes, mode, calibration: { source: 'temporal-out-of-fold-errors', n: resid.length, mode, fallbackPhases: fallback, globalPool: dayOnly ? 'daytime' : 'all', nGlobal: dayOnly ? gres.length : resid.length },
       offsets: tab ? tab.map(({ lo, hi }) => ({ lo, hi })) : { lo: G.lo, hi: G.hi },
       pitSpan: (y, i) => {
         const group = at(i), shift = pred[i], factor = sc[i], zeroClip = clip(-1) === 0;
@@ -1218,8 +1221,9 @@
 
   /* Wilcoxon signed-rank test, paired (Wilcoxon 1945), two-sided, on two lists of errors for the same targets.
      d_i = |a_i| - |b_i|; zero differences dropped; |d_i| ranked, ties get their average rank; W+ = sum of the ranks of
-     positive d_i. Normal approximation with tie and continuity corrections (n >= 20 nonzero pairs, else no p-value):
+     positive d_i. Normal approximation with tie and continuity corrections (n >= 20 nonzero pairs):
      z = (|W+ - n(n+1)/4| - 0.5) / sqrt(n(n+1)(2n+1)/24 - sum(t^3 - t)/48), p = 2 (1 - Phi(z)).
+     Below 20 nonzero pairs: exact p-value from the 2^n equally likely sign patterns of the ranks (2026-11-26).
      better: 'a' when the errors of a are smaller (W+ below its mean), 'b' otherwise. medianDiff: median of d_i (all pairs). */
   /* erfc: power series below 2.5, continued fraction above (relative error under 1e-11 against scipy.special.erfc, z = 0 to 30) */
   function erfc(t) {
@@ -1235,7 +1239,7 @@
     const d = all.filter(v => v !== 0), n = d.length;
     const sorted = all.slice().sort((x, y) => x - y), medianDiff = sorted.length ? (sorted[(sorted.length - 1) >> 1] + sorted[sorted.length >> 1]) / 2 : NaN;
     const out = { n, zeros: all.length - n, excluded, medianDiff, wPlus: NaN, z: NaN, p: NaN, better: null }; // excluded: pairs with a non-finite error
-    if (n < 20) return out;
+    if (!n) return out;
     const idx = d.map((v, i) => i).sort((i, j) => Math.abs(d[i]) - Math.abs(d[j])), rank = new Float64Array(n);
     let ties = 0;
     for (let k = 0; k < n;) {
@@ -1244,11 +1248,24 @@
       ties += t * t * t - t; k = e + 1;
     }
     let wPlus = 0; for (let i = 0; i < n; i++) if (d[i] > 0) wPlus += rank[i];
+    if (n < 20) { // exact null distribution of W+ given the ranks (2^n equally likely signs; ranks doubled to integers for ties)
+      const r2 = Array.from(rank, v => Math.round(2 * v)), tot = r2.reduce((x, y) => x + y, 0), f = new Float64Array(tot + 1); f[0] = 1;
+      for (const v of r2) for (let s = tot; s >= v; s--) f[s] += f[s - v];
+      const w2 = Math.round(2 * wPlus), all2 = Math.pow(2, n); let le = 0, ge = 0;
+      for (let s = 0; s <= tot; s++) { if (s <= w2) le += f[s]; if (s >= w2) ge += f[s]; }
+      const mu0 = n * (n + 1) / 4;
+      return Object.assign(out, { wPlus, z: NaN, exact: true, p: Math.min(1, 2 * Math.min(le, ge) / all2), better: wPlus < mu0 ? 'a' : wPlus > mu0 ? 'b' : null });
+    }
     const mu = n * (n + 1) / 4, sd = Math.sqrt(n * (n + 1) * (2 * n + 1) / 24 - ties / 48);
     const z = sd > 0 ? Math.max(0, Math.abs(wPlus - mu) - 0.5) / sd : 0;
     return Object.assign(out, { wPlus, z: wPlus < mu ? -z : z, p: Math.min(1, erfc(z / Math.SQRT2)), better: wPlus < mu ? 'a' : wPlus > mu ? 'b' : null });
   }
   E.wilcoxon = wilcoxon;
+  /* targets for the paired test at horizon h (Cyril, 2026-11-26): errors h steps ahead overlap (two neighbouring targets share
+     h - 1 steps of the same path), so they are strongly correlated and the test would be far too optimistic. Keep one scored
+     target every h steps of time: idx = positions of the scored targets in time order (H.scored or all). h = 1: all of them. */
+  function spacedTargets(idx, h) { const out = []; let last = -Infinity; for (const i of idx) if (i - last >= h) { out.push(i); last = i; } return out; }
+  E.spacedTargets = spacedTargets;
 
   // Czado, Gneiting and Held (2009): distribute mass uniformly across [F(y-), F(y)].
   const pitSpan = (y, bd, i) => bd.pitSpan(y, i);
@@ -1466,7 +1483,10 @@
           ph = { T: cfg.T, rph, tph: smp.te.map(t => (t + h) % cfg.T) };
         }
         const asymmetric = cfg.bandAsym !== undefined ? cfg.bandAsym : true;
-        const bd0 = band(r.pred, cres, cfg.qlo, cfg.qhi, clipO, cfg.bandKind, r.scale, ph, asymmetric);
+        // solar series: the global calibration group keeps daytime targets only (isDay, same rule as the scores)
+        let gkeep = null;
+        if (sol) { gkeep = []; for (const { a, b } of calFolds) for (let i = a; i < b; i++) gkeep.push(isDay(smp.tr[i] + h)); }
+        const bd0 = band(r.pred, cres, cfg.qlo, cfg.qhi, clipO, cfg.bandKind, r.scale, ph, asymmetric, gkeep);
         bd0.calibration = Object.assign({}, bd0.calibration, { folds: `${smp.folds.length - calFolds.length + 1} to ${smp.folds.length} of ${smp.folds.length}`, perPhase: !!ph });
         if (m.globalBand && cfg.bandPhase) bd0.notes = Object.assign({}, bd0.notes, { globalBand: `${m.name}: a constant forecast, so one global interval (not per phase).` });
         if (hooks.capture) hooks.capture({ id, h, ctx, smp, r, bd: bd0 });

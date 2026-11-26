@@ -8,7 +8,7 @@
 <link rel="canonical" href="https://frugalcast.cyrilvoyant.com/protocol.html">
 <link rel="author" href="https://orcid.org/0000-0003-0242-7377">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%2307569a%27/%3E%3Cpath d=%27M4 22 C9 21 10 11 15 12 S21 23 28 9%27 stroke=%27%23fff%27 stroke-width=%273%27 fill=%27none%27 stroke-linecap=%27round%27/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=1.4.0">
+<link rel="stylesheet" href="style.css?v=1.4.1">
 <style>
   .doc{max-width:860px;margin:0 auto;padding:1.2rem 16px 3rem;line-height:1.6}
   .doc h1{margin:.6rem 0 .3rem}.doc h2{margin-top:2.2rem;padding-top:.6rem;border-top:1px solid var(--line)}
@@ -30,7 +30,7 @@
 
 <main class="doc">
 <h1>Protocol</h1>
-<p>What FrugalCast does, step by step, as written in <a href="engine.js">engine.js</a>. Every model goes through the same steps, so that the comparison is fair. Engine 1.4.0.</p>
+<p>What FrugalCast does, step by step, as written in <a href="engine.js">engine.js</a>. Every model goes through the same steps, so that the comparison is fair. Engine 1.4.1.</p>
 <nav class="toc"><a href="#data">1 Data</a><a href="#samples">2 Samples</a><a href="#cv">3 Settings</a><a href="#intervals">4 Intervals</a><a href="#night">5 Night</a><a href="#metrics">6 Metrics</a><a href="#nice">7 NICE</a><a href="#wilcoxon">8 Wilcoxon</a><a href="#repro">9 Reproducibility</a><a href="#limits">Known limits</a><a href="#versions">Versions</a></nav>
 
 <h2 id="protocol"><span id="data"></span>1. Data: two series, one after the other</h2>
@@ -61,7 +61,7 @@
 
 <h2 id="intervals">4. Prediction intervals</h2>
 <ul>
-<li>Built from the out-of-fold errors of folds 2 to 4 (the first fold, fitted on one block only, is left out), for each horizon. Conformal-style ranks: the limits are ranks of these errors, per phase of the period when there are enough errors (at least 20), otherwise global. Climatology always gets one global interval.</li>
+<li>Built from the out-of-fold errors of folds 2 to 4 (the first fold, fitted on one block only, is left out), for each horizon. Conformal-style ranks: the limits are ranks of these errors, per phase of the period when there are enough errors (at least 20), otherwise global. Climatology always gets one global interval. Solar series: the global group (used without phases, by climatology and by phases with too few errors) keeps only the errors of daytime targets, so that the zero errors of the night do not narrow the daytime intervals; the groups per phase are unchanged.</li>
 <li>Asymmetric by default: the lower and upper limits come from the signed errors. The 99 centiles of the same errors give the PIT, the calibration plot and the CRPS.</li>
 <li>These are temporal out-of-fold errors, not exchangeable data: no coverage guarantee is claimed. The coverage actually obtained on the test is reported (PICP) next to the target coverage.</li>
 </ul>
@@ -90,11 +90,11 @@
 
 <h2 id="wilcoxon">8. Are two models really different? Wilcoxon signed-rank test</h2>
 <ul>
-<li>On demand, under the score table, for every pair of ticked models, on the same scored targets.</li>
-<li>For each target: d<sub>i</sub> = |error of model A| − |error of model B|. Zero differences are dropped, the |d<sub>i</sub>| are ranked (average ranks for ties) and W<sup>+</sup> is the sum of the ranks of the positive d<sub>i</sub>. Two-sided test, normal approximation with tie and continuity corrections (Wilcoxon, 1945), from 20 nonzero differences. Checked against <code>scipy.stats.wilcoxon</code>.</li>
+<li>On demand, under the score table, for every pair of ticked models, on the same scored targets, one every h steps at horizon h: two neighbouring targets share h − 1 steps of the same path, so their errors overlap and would make the test far too optimistic (h = 1: every target).</li>
+<li>For each target: d<sub>i</sub> = |error of model A| − |error of model B|. Zero differences are dropped, the |d<sub>i</sub>| are ranked (average ranks for ties) and W<sup>+</sup> is the sum of the ranks of the positive d<sub>i</sub>. Two-sided test, normal approximation with tie and continuity corrections (Wilcoxon, 1945), from 20 nonzero differences; below, exact p-value from the 2<sup>n</sup> equally likely sign patterns of the ranks. Checked against <code>scipy.stats.wilcoxon</code>.</li>
 </ul>
 <div class="eq">z = ( |W<sup>+</sup> − n(n+1)/4| − 0.5 ) / √( n(n+1)(2n+1)/24 − Σ(t³ − t)/48 ), &nbsp;&nbsp; p = 2 (1 − Φ(z))</div>
-<p><b>The p-value</b> is the probability of seeing a difference at least this large if the two models were in fact equally accurate. Below 0.05, the difference is called significant at the 5 % level. Above, the data do not show a difference, which does not prove the models equal. The p-value says nothing about the size of the gain. The test looks at the typical error, while RMSE is driven by the largest errors: on the Alice Springs example at h = 1, ARTU and ARMA have close RMSE (538 and 549 W), but ARTU is closer to the observation on 68 % of the 688 daytime targets (median absolute error 94 W against 214 W), so p &lt; 0.001. Successive errors of a time series are correlated, so the test is optimistic (the true p-value is larger). With many pairs, a few p-values fall below 0.05 by chance: about 5 % of the pairs when all models are equal.</p>
+<p><b>The p-value</b> is the probability of seeing a difference at least this large if the two models were in fact equally accurate. Below 0.05, the difference is called significant at the 5 % level. Above, the data do not show a difference, which does not prove the models equal. The p-value says nothing about the size of the gain. The test looks at the typical error, while RMSE is driven by the largest errors: on the Alice Springs example at h = 1, ARTU and ARMA have close RMSE (538 and 549 W), but ARTU is closer to the observation on 68 % of the 688 daytime targets (median absolute error 94 W against 214 W), so p &lt; 0.001. Even one step apart, successive errors of a time series can be correlated, so the test stays somewhat optimistic (the true p-value is larger). With few targets (long horizon, short series), p-values are large: not significant, which does not prove the models equal. With many pairs, a few p-values fall below 0.05 by chance: about 5 % of the pairs when all models are equal.</p>
 
 <h2 id="repro">9. Reproducibility</h2>
 <ul>
@@ -118,6 +118,7 @@
 <p>Every version is archived on Zenodo; the DOI <a href="https://doi.org/10.5281/zenodo.24197717">10.5281/zenodo.24197717</a> always resolves to the latest one. Results change between versions when the protocol changes; the engine SHA-256 in each export says which version made them.</p>
 <table>
 <tr><th>Version</th><th>Date</th><th>Changes that affect the numbers</th></tr>
+<tr><td>1.4.1</td><td>2026-11-26</td><td>Solar series: the global calibration group of the intervals keeps only daytime errors (night zeros narrowed it). Mean daytime PICP over rolling test windows (GTI, PV Alice Springs, 80 % asked): 0.68–0.79 → 0.81–0.86 for GTI, 0.49–0.52 → 0.71–0.76 for PV at one step. Non-solar series unchanged. Wilcoxon test at horizon h on one target every h steps (errors that do not overlap; before, p-values were far too small at long horizons), exact p-value below 20 pairs.</td></tr>
 <tr><td>1.4.0</td><td>2026-11</td><td>Night from the sun position for solar series (causal), or no night rule; scored daytime = sun above 5° in that mode. Wilcoxon test between models. Series to forecast taken later (for instance one year after): the first forecasts wait for a whole input window inside it; its clock is counted from its own first value. Two questions, read from the dates or confirmed by the user: same day of the year, same hour of the day. The day of the week is not used; the last learning values that do not fill a whole period are left out. Not the same hour: no period (no clock inputs, no cyclic model). Otherwise, only the matching sine/cosine inputs are kept. Provenance (SHA-256) in the JSON export. Default fixed values: 50 hidden neurons (was 500, too slow) and 1/4 of a period of inputs. Alice Springs example cut into 12 days to learn and 5 to forecast. Results of the “observed zeros” mode are unchanged.</td></tr>
 <tr><td>1.3.0</td><td>2026-11-25</td><td>Inputs: 1/10, 1/4, 1/2 or all of one period, capped at 500. Each ELM keeps the best of 5 random hidden layers (was 30). NICE ≥ 1 flagged.</td></tr>
 <tr><td>1.2.0</td><td>2026-11-25</td><td>Same phase for both series; day-of-week input (was hour in the week); annual cycle from one year of data; gap filling for dated series.</td></tr>

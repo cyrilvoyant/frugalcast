@@ -393,7 +393,7 @@
   $('weekly').addEventListener('change', syncPeriod); $('annual').addEventListener('change', syncPeriod);
   $('Tquick').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || $('T').disabled) return; $('T').value = b.dataset.v; syncPeriod(); syncGap(); });
 
-  const EXAMPLES = { ghi: ['example-ghi.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).ghi, { scoreOn: 'day', night: 'sun', lat: 44.0128, lon: 20.9114, start: '2023-09-01T00:00Z', stamp: 'start' }], edf: ['example.js?v=1.4.0', () => self.PRED_EXAMPLE, null], gti: ['example-gti.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).gti, { scoreOn: 'day', night: 'observed' }], sunspots: ['example-sunspots.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).sunspots, null], eurusd: ['example-eurusd.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).eurusd, null], us10y: ['example-us10y.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).us10y, null], dkasc: ['example-dkasc.js?v=1.4.0', () => (self.PRED_EXAMPLES || {}).dkasc, { scoreOn: 'day', night: 'sun', lat: -23.762, lon: 133.875, start: '2021-02-25T14:35Z', stamp: 'end' }] };
+  const EXAMPLES = { ghi: ['example-ghi.js?v=1.4.1', () => (self.PRED_EXAMPLES || {}).ghi, { scoreOn: 'day', night: 'sun', lat: 44.0128, lon: 20.9114, start: '2023-09-01T00:00Z', stamp: 'start' }], edf: ['example.js?v=1.4.1', () => self.PRED_EXAMPLE, null], gti: ['example-gti.js?v=1.4.1', () => (self.PRED_EXAMPLES || {}).gti, { scoreOn: 'day', night: 'observed' }], sunspots: ['example-sunspots.js?v=1.4.1', () => (self.PRED_EXAMPLES || {}).sunspots, null], eurusd: ['example-eurusd.js?v=1.4.1', () => (self.PRED_EXAMPLES || {}).eurusd, null], us10y: ['example-us10y.js?v=1.4.1', () => (self.PRED_EXAMPLES || {}).us10y, null], dkasc: ['example-dkasc.js?v=1.4.1', () => (self.PRED_EXAMPLES || {}).dkasc, { scoreOn: 'day', night: 'sun', lat: -23.762, lon: 133.875, start: '2021-02-25T14:35Z', stamp: 'end' }] };
   const syncSolar = () => { $('solarBox').classList.toggle('hidden', !$('solar').checked); $('sunBox').classList.toggle('hidden', $('solNight').value !== 'sun'); for (const id of ['solStartTest', 'solStartTestL']) $(id).classList.toggle('hidden', !$('gap').checked); };
   $('solar').addEventListener('change', syncGap); $('solNight').addEventListener('change', syncGap); ['solStart', 'solStartTest'].forEach(id => $(id).addEventListener('input', syncGap)); $('gap').addEventListener('change', syncGap);
   ['sameHour', 'sameDay'].forEach(id => $(id).addEventListener('change', syncGap));
@@ -482,7 +482,7 @@
     job = nj; result = null; ran = API.snapshot(); $('results').classList.add('hidden'); $('kpis').innerHTML = ''; $('err').classList.remove('on'); // nothing from the previous run stays on screen
     $('go').disabled = true; $('stop').disabled = false; $('barfill').style.width = '0';
     $('status').textContent = 'Starting…'; t0 = performance.now();
-    try { worker = new Worker('worker.js?v=1.4.0'); } catch (e) { reset(); return fail('Open this page through a web server (not as a local file) so that the computation can run in the background.'); }
+    try { worker = new Worker('worker.js?v=1.4.1'); } catch (e) { reset(); return fail('Open this page through a web server (not as a local file) so that the computation can run in the background.'); }
     worker.onmessage = e => {
       const m = e.data;
       if (m.type === 'progress') { $('barfill').style.width = (100 * m.f).toFixed(1) + '%'; $('status').textContent = `${Math.round(100 * m.f)} % · ${m.text}`; }
@@ -589,7 +589,7 @@
   // ---------- Wilcoxon signed-rank test, pair by pair, on demand (Cyril, 2026-11-25) ----------
   // absolute errors of two models on the same scored targets of the horizon shown; E.wilcoxon gives the two-sided p-value
   function wilTable() {
-    const h = H(), ids = live(h), idx = h.scored || h.y.map((_, i) => i);
+    const h = H(), ids = live(h), idx = E.spacedTargets(h.scored || h.y.map((_, i) => i), h.h); // one target every h steps: errors that do not overlap
     const err = id => idx.map(i => h.y[i] - h.models[id].pred[i]), name = id => E.MODELS[id].name, esc = t => String(t).replace(/</g, '&lt;');
     if (ids.length < 2) { $('wil').innerHTML = '<p class="note">Tick at least two models.</p>'; return; }
     const E_ = Object.fromEntries(ids.map(id => [id, err(id)])), pairs = ids.length * (ids.length - 1) / 2;
@@ -600,16 +600,16 @@
       for (const b of ids) {
         if (a === b) { rows += '<td class="diag"></td>'; continue; }
         const w = E.wilcoxon(E_[a], E_[b]);
-        if (!Number.isFinite(w.p)) { rows += `<td class="ns">–<small>too few pairs (${w.n})</small></td>`; continue; }
+        if (!Number.isFinite(w.p)) { rows += `<td class="ns">–<small>no nonzero difference</small></td>`; continue; }
         const sig = w.p < 0.05, win = w.better === 'a' ? a : w.better === 'b' ? b : null, ea = E_[a], eb = E_[b];
         let closer = 0; for (let i = 0; i < ea.length; i++) if (Math.abs(win === b ? eb[i] : ea[i]) < Math.abs(win === b ? ea[i] : eb[i])) closer++;
         rows += `<td class="${sig ? 'sig' : 'ns'}" title="n = ${w.n} nonzero differences, ${w.zeros} ties at 0; median of |error| ${esc(name(a))} − |error| ${esc(name(b))} = ${+w.medianDiff.toPrecision(3)}">p ${fp(w.p)}<small>${sig && win ? esc(name(win)) + ' better, closer on ' + Math.round(100 * closer / ea.length) + ' % of targets' : 'no significant difference'}</small></td>`;
       }
       rows += '</tr>';
     }
-    $('wil').innerHTML = `<p class="note">Horizon ${h.h}, ${idx.length.toLocaleString('en')} scored targets${h.scored ? ' (the same as the scores above)' : ''}. Each cell compares the model of its row with the model of its column.</p>
+    $('wil').innerHTML = `<p class="note">Horizon ${h.h}, ${idx.length.toLocaleString('en')} scored targets${h.h > 1 ? `, one every ${h.h} steps so that the errors do not overlap` : ''}${h.scored ? ' (taken from the scored targets above)' : ''}. Each cell compares the model of its row with the model of its column.</p>
       <div class="tablewrap"><table><thead><tr><th></th>${ids.map(id => `<th scope="col">${esc(name(id))}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="note"><b>What the test does.</b> For every scored target, it takes the absolute error of each of the two models and looks at the difference. It ranks these differences by size and checks whether one model wins more often, and by larger margins, than chance would give (Wilcoxon signed-rank test, paired, two-sided; normal approximation with continuity and tie corrections).</p>
+      <p class="note"><b>What the test does.</b> For every scored target, it takes the absolute error of each of the two models and looks at the difference. It ranks these differences by size and checks whether one model wins more often, and by larger margins, than chance would give (Wilcoxon signed-rank test, paired, two-sided; normal approximation with continuity and tie corrections, exact p-value below 20 pairs). At horizon h, two neighbouring targets share h − 1 steps of the same path, so their errors are not independent: the test keeps one target every h steps. Few targets give large p-values: not significant, not proof of equality.</p>
       <p class="note"><b>What the p-value means.</b> It is the probability of seeing a difference at least this large if the two models were in fact equally accurate.</p>
       <ul class="note"><li><b>p &lt; 0.05</b>: the difference is significant at the 5 % level; the cell names the model with the smaller errors.</li>
       <li><b>p ≥ 0.05</b>: these data do not show a difference. This does not prove that the two models are equal.</li>
@@ -641,7 +641,8 @@
   function area(g, a, b, X, Yup, Ylo, fill) { g.fillStyle = fill; g.beginPath(); for (let i = a; i < b; i++) g.lineTo(X(i), Yup(i)); for (let i = b - 1; i >= a; i--) g.lineTo(X(i), Ylo(i)); g.closePath(); g.fill(); }
   const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
   const pad = (lo, hi) => { const p = (hi - lo) * 0.06 || 1; return [lo - p, hi + p]; };
-  const cen = (m, i, k) => { const sc = m.sc ? m.sc[i] : 1, v = m.pred[i] + (sc === 0 ? 0 : (m.cph ? m.cent[m.cph[i]] : m.cent)[k] * sc); return m.low0 && v < 0 ? 0 : v; };
+  // night rule: the engine sets the forecast and both limits to 0 there, and every centile too (point mass at 0)
+  const cen = (m, i, k) => { if (m.pred[i] === 0 && m.lo[i] === 0 && m.hi[i] === 0) return 0; const sc = m.sc ? m.sc[i] : 1, v = m.pred[i] + (sc === 0 ? 0 : (m.cph ? m.cent[m.cph[i]] : m.cent)[k] * sc); return m.low0 && v < 0 ? 0 : v; };
   function title(g, x, y, txt, c) { g.font = '600 13px system-ui,Segoe UI,sans-serif'; g.fillStyle = c; g.fillText(txt, x, y); g.font = '12px system-ui,Segoe UI,sans-serif'; }
 
   function drawSeries() {
@@ -919,11 +920,12 @@
       let engine = null;
       try { engine = await sha256((await (await fetch(document.querySelector('script[src^="engine.js"]').src, { cache: 'force-cache' })).text()).replace(/\r\n?/g, '\n')); } catch (e) { /* offline copy */ }
       const ids = live(h), idx = h.scored || h.y.map((_, i) => i), err = id => idx.map(i => h.y[i] - h.models[id].pred[i]), wil = [];
-      for (let i = 0; i < ids.length; i++) for (let k = i + 1; k < ids.length; k++) { const w = E.wilcoxon(err(ids[i]), err(ids[k])); wil.push({ a: ids[i], b: ids[k], n: w.n, ties: w.zeros, medianDiff: w.medianDiff, z: w.z, p: w.p, better: w.better === 'a' ? ids[i] : w.better === 'b' ? ids[k] : null }); }
+      const sidx = E.spacedTargets(idx, h.h), errS = id => sidx.map(i => h.y[i] - h.models[id].pred[i]);
+      for (let i = 0; i < ids.length; i++) for (let k = i + 1; k < ids.length; k++) { const w = E.wilcoxon(errS(ids[i]), errS(ids[k])); wil.push({ a: ids[i], b: ids[k], n: w.n, ties: w.zeros, medianDiff: w.medianDiff, z: w.z, p: w.p, exact: !!w.exact, better: w.better === 'a' ? ids[i] : w.better === 'b' ? ids[k] : null }); }
       return {
         created_utc: new Date().toISOString(), engine: { version: (/Version ([\d.]+)/.exec(CITE) || [])[1] || null, sha256: engine, note: 'SHA-256 of engine.js with LF line ends, as the local kit computes it' },
         inputs: { learning: { n: job.train.length, sha256: await sha256(job.train.join('\n')) }, forecast: { n: job.test.length, sha256: await sha256(job.test.join('\n')) }, note: 'SHA-256 of the values, one per line, as JavaScript writes numbers' },
-        scoredTargets: idx.length, wilcoxon: { test: 'Wilcoxon signed-rank, paired, two-sided, on absolute errors of the scored targets; normal approximation with tie and continuity corrections; errors of a time series are correlated, so p-values are optimistic', pairs: wil },
+        scoredTargets: idx.length, wilcoxon: { test: 'Wilcoxon signed-rank, paired, two-sided, on absolute errors of one scored target every h steps (errors that do not overlap); normal approximation with tie and continuity corrections from 20 nonzero pairs, exact p-value below; successive errors can still be correlated', targets: sidx.length, step: h.h, pairs: wil },
         reproduce: 'Same series (same SHA-256), same settings and same engine SHA-256 give the same numbers (random draws seeded, seed 42).',
         bibtex: [...new Set(['FrugalCast', 'Voyant2025Nice'].concat(...job.models.map(PAPERS_OF)))].map(k => (self.PRED_BIB || {})[k]).filter(Boolean).join('\n\n'),
       };
